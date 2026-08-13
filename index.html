@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영업 타겟 지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#131a24;
+    --paper:#f4f2ec;
+    --panel:#ffffff;
+    --line:#e2ded2;
+    --brand:#1c3a3a;
+    --brand-soft:#e7efe9;
+    --high:#c4432b;
+    --high-soft:#fbe7e1;
+    --mid:#c9891f;
+    --mid-soft:#fbf0dc;
+    --low:#7a8a94;
+    --low-soft:#eef1f2;
+    --muted:#6b6558;
+    font-family:'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding:14px 22px;
+    background:var(--brand);
+    color:#f4f2ec;
+    flex-shrink:0;
+    z-index:20;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand .mark{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    background:rgba(244,242,236,0.14);
+    padding:3px 7px;
+    border-radius:3px;
+  }
+  .brand h1{
+    font-size:17px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  .header-stats{
+    display:flex;
+    gap:18px;
+    margin-left:auto;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+  }
+  .header-stats span b{
+    font-size:14px;
+    display:block;
+    font-weight:600;
+  }
+  .search-wrap{
+    position:relative;
+    width:260px;
+  }
+  .search-wrap input{
+    width:100%;
+    padding:8px 12px 8px 32px;
+    border-radius:6px;
+    border:none;
+    background:rgba(244,242,236,0.14);
+    color:#f4f2ec;
+    font-size:13px;
+    outline:none;
+  }
+  .search-wrap input::placeholder{color:rgba(244,242,236,0.55);}
+  .search-wrap input:focus{background:rgba(244,242,236,0.22);}
+  .search-wrap svg{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    opacity:0.6;
+  }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    flex:1;
+    display:flex;
+    min-height:0;
+  }
+
+  /* ---------- Sidebar ---------- */
+  aside{
+    width:380px;
+    flex-shrink:0;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .filters{
+    display:flex;
+    gap:6px;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .chip{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    font-weight:600;
+    padding:6px 10px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--muted);
+    cursor:pointer;
+    transition:all .15s ease;
+    letter-spacing:0.02em;
+  }
+  .chip:hover{border-color:var(--brand);}
+  .chip.active{background:var(--brand); color:#f4f2ec; border-color:var(--brand);}
+  .chip .dot{display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px;}
+  .chip[data-p="A"] .dot{background:var(--high);}
+  .chip[data-p="B"] .dot{background:var(--mid);}
+  .chip[data-p="C"] .dot{background:var(--low);}
+
+  /* ---------- Route panel ---------- */
+  .route-panel{
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    background:#fbfaf6;
+    flex-shrink:0;
+  }
+  .route-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:6px;
+  }
+  .route-title{
+    font-size:12.5px;
+    font-weight:700;
+  }
+  .route-count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--brand);
+    font-weight:600;
+    background:var(--brand-soft);
+    padding:2px 8px;
+    border-radius:10px;
+  }
+  .route-start{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-bottom:8px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .route-actions{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-bottom:8px;
+  }
+  .rbtn{
+    font-family:'Pretendard', sans-serif;
+    font-size:11.5px;
+    font-weight:600;
+    padding:6px 9px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    cursor:pointer;
+    transition:background .12s ease, border-color .12s ease;
+  }
+  .rbtn:hover{border-color:var(--brand);}
+  .rbtn.ghost{background:transparent; color:var(--muted);}
+  .rbtn.primary{
+    width:100%;
+    background:var(--brand);
+    color:#f4f2ec;
+    border-color:var(--brand);
+    padding:9px;
+    font-size:12.5px;
+  }
+  .rbtn.primary:disabled{
+    opacity:0.4;
+    cursor:not-allowed;
+  }
+  .rbtn.primary:not(:disabled):hover{background:#254c4c;}
+  .rbtn.active{background:var(--brand); color:#f4f2ec; border-color:var(--brand);}
+
+  .route-result{
+    margin-top:10px;
+    border-top:1px dashed var(--line);
+    padding-top:10px;
+  }
+  .route-summary{
+    display:flex;
+    gap:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+  .route-summary b{color:var(--ink); font-size:12.5px; display:block;}
+  .route-stop{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:5px 0;
+    font-size:12px;
+  }
+  .route-stop .seq{
+    flex-shrink:0;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:var(--brand);
+    color:#f4f2ec;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    font-weight:700;
+  }
+  .route-stop .seq.home{background:#2c6b6b;}
+  .route-stop-name{
+    flex:1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .route-note{
+    font-size:10.5px;
+    color:var(--muted);
+    margin-top:6px;
+    line-height:1.5;
+  }
+
+  .card-check{
+    flex-shrink:0;
+    width:16px; height:16px;
+    margin-top:2px;
+    accent-color:var(--brand);
+    cursor:pointer;
+  }
+  .card.in-route{background:var(--brand-soft); border-color:var(--brand);}
+
+  .num-marker{
+    width:26px; height:26px;
+    border-radius:50%;
+    background:var(--brand);
+    color:#f4f2ec;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:700;
+    font-size:12px;
+    border:2px solid #fff;
+    box-shadow:0 2px 6px rgba(19,26,36,0.3);
+  }
+  .num-marker.home{background:#2c6b6b;}
+  .user-dot{
+    width:16px; height:16px;
+    border-radius:50%;
+    background:#2f6fed;
+    border:3px solid #fff;
+    box-shadow:0 0 0 4px rgba(47,111,237,0.25);
+  }
+
+  .sort-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 14px;
+    font-size:11px;
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+
+  .list{
+    flex:1;
+    overflow-y:auto;
+    padding:6px;
+  }
+  .card{
+    display:flex;
+    gap:12px;
+    padding:12px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:background .12s ease, border-color .12s ease;
+  }
+  .card:hover{background:var(--paper);}
+  .card.selected{background:var(--brand-soft); border-color:var(--brand);}
+
+  .score-ring{
+    flex-shrink:0;
+    width:44px;
+    height:44px;
+    position:relative;
+  }
+  .score-ring svg{transform:rotate(-90deg);}
+  .score-ring .num{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    font-weight:600;
+  }
+
+  .card-body{min-width:0; flex:1;}
+  .card-top{display:flex; align-items:center; gap:6px; margin-bottom:2px;}
+  .card-name{
+    font-size:13.5px;
+    font-weight:700;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .badge{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    font-weight:600;
+    padding:1.5px 6px;
+    border-radius:10px;
+    flex-shrink:0;
+  }
+  .badge.A{background:var(--high-soft); color:var(--high);}
+  .badge.B{background:var(--mid-soft); color:var(--mid);}
+  .badge.C{background:var(--low-soft); color:var(--low);}
+
+  .card-meta{
+    font-size:11.5px;
+    color:var(--muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    margin-bottom:3px;
+  }
+  .card-tags{
+    display:flex; gap:4px; flex-wrap:wrap;
+  }
+  .tag{
+    font-size:10px;
+    color:var(--brand);
+    background:var(--brand-soft);
+    padding:1px 6px;
+    border-radius:4px;
+  }
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    padding:40px 20px;
+  }
+
+  /* ---------- Map ---------- */
+  .map-wrap{flex:1; position:relative;}
+  #map{width:100%; height:100%; background:var(--paper);}
+
+  .legend{
+    position:absolute;
+    bottom:22px;
+    left:14px;
+    z-index:400;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 14px;
+    font-size:11.5px;
+    box-shadow:0 2px 10px rgba(19,26,36,0.08);
+  }
+  .legend-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--muted);
+    margin-bottom:6px;
+    letter-spacing:0.04em;
+  }
+  .legend-row{display:flex; align-items:center; gap:7px; margin-bottom:4px;}
+  .legend-row:last-child{margin-bottom:0;}
+  .legend-dot{width:9px; height:9px; border-radius:50%;}
+
+  /* Leaflet popup override */
+  .leaflet-popup-content-wrapper{
+    border-radius:10px;
+    box-shadow:0 6px 24px rgba(19,26,36,0.18);
+  }
+  .popup-card{font-family:'Pretendard', sans-serif; min-width:220px;}
+  .popup-card h3{font-size:14px; margin-bottom:6px; display:flex; align-items:center; gap:6px;}
+  .popup-card .row{font-size:12px; color:var(--muted); margin-bottom:3px; line-height:1.5;}
+  .popup-card .row b{color:var(--ink); font-weight:600;}
+  .popup-card a{
+    display:inline-block; margin-top:8px; font-size:12px;
+    color:var(--brand); font-weight:600; text-decoration:none;
+    border-bottom:1px solid var(--brand);
+  }
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:#d8d3c4; border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  @media (max-width: 820px){
+    .layout{flex-direction:column;}
+    aside{width:100%; height:42%; border-right:none; border-bottom:1px solid var(--line);}
+    .map-wrap{flex:1;}
+    .search-wrap{width:170px;}
+    .header-stats{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="mark">FIELD MAP</span>
+    <h1>영업 타겟 지도</h1>
+  </div>
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="search" type="text" placeholder="기업명, 업종, 주소 검색" />
+  </div>
+  <div class="header-stats">
+    <span>전체 <b id="stat-total">-</b></span>
+    <span>A등급 <b id="stat-high">-</b></span>
+    <span>평균점수 <b id="stat-avg">-</b></span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="filters">
+      <div class="chip active" data-p="all">전체</div>
+      <div class="chip" data-p="A"><span class="dot"></span>A등급</div>
+      <div class="chip" data-p="B"><span class="dot"></span>B등급</div>
+      <div class="chip" data-p="C"><span class="dot"></span>C등급</div>
+    </div>
+
+    <div class="route-panel">
+      <div class="route-head">
+        <span class="route-title">오늘의 방문 루트</span>
+        <span class="route-count" id="route-count">0 / 6 선택</span>
+      </div>
+      <div class="route-start" id="route-start-label">출발: 화곡로 350</div>
+      <div class="route-actions">
+        <button class="rbtn" id="btn-geolocate">📍 내 위치 사용</button>
+        <button class="rbtn" id="btn-auto6">가까운 6곳 자동선택</button>
+        <button class="rbtn ghost" id="btn-clear-route">선택 초기화</button>
+      </div>
+      <button class="rbtn primary" id="btn-calc-route" disabled>경로 계산하기</button>
+      <div id="route-result" class="route-result" style="display:none;"></div>
+    </div>
+
+    <div class="sort-row">
+      <span id="count-label">0개 기업</span>
+      <span>점수순 정렬</span>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="legend">
+      <div class="legend-title">우선순위</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--high)"></span>A등급 — 즉시 컨택</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--mid)"></span>B등급 — 검토 후 컨택</div>
+      <div class="legend-row"><span class="legend-dot" style="background:var(--low)"></span>C등급 — 보류</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const COLORS = {
+  'A': '#c4432b',
+  'B': '#c9891f',
+  'C': '#7a8a94',
+  '기타': '#7a8a94'
+};
+const MAX_SCORE = 10; // 점수 스케일 (0~10점, 필요시 여기만 수정)
+
+let DATA = [];
+let markers = {};
+let selectedId = null;
+let activeFilter = 'all';
+
+// ---- 방문 루트 상태 ----
+const HOME = { lat: 37.5549477, lng: 126.8523571, name: '출발지 (화곡로 350)' };
+let startPoint = HOME;
+let userMarker = null;
+let routeSelection = new Set();   // 선택된 기업 __id
+let routeLine = null;
+let routeNumMarkers = [];
+let homeMarker = null;
+
+const map = L.map('map', { zoomControl: true }).setView([37.556, 126.835], 12);
+L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO',
+  maxZoom: 19
+}).addTo(map);
+
+function renderHomeMarker(){
+  if(homeMarker) map.removeLayer(homeMarker);
+  const icon = L.divIcon({ className:'', html:`<div class="num-marker home">🏠</div>`, iconSize:[26,26], iconAnchor:[13,13] });
+  homeMarker = L.marker([startPoint.lat, startPoint.lng], {icon, zIndexOffset:1000})
+    .bindPopup(`<b>${startPoint.name}</b>`)
+    .addTo(map);
+}
+renderHomeMarker();
+
+function priorityKey(p){
+  if(!p) return '기타';
+  if(COLORS[p]) return p;
+  return '기타';
+}
+
+function scoreColor(score){
+  const s = (score===null || score===undefined) ? MAX_SCORE*0.5 : score;
+  const pct = s / MAX_SCORE;
+  if(pct>=0.7) return COLORS['A'];
+  if(pct>=0.4) return COLORS['B'];
+  return COLORS['C'];
+}
+
+function makeMarker(item, id){
+  const pk = priorityKey(item.priority);
+  const color = COLORS[pk] !== '#7a8a94' || pk!=='기타' ? COLORS[pk] : scoreColor(item.score);
+  const scorePct = Math.min(1, Math.max(0, (item.score||0)/MAX_SCORE));
+  const radius = 6 + scorePct*10;
+  const m = L.circleMarker([item.lat, item.lng], {
+    radius: radius,
+    color: '#ffffff',
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.92
+  });
+  m.bindPopup(popupHtml(item), {maxWidth: 260});
+  m.on('click', () => selectItem(id, true));
+  return m;
+}
+
+function popupHtml(item){
+  const tagList = safeTags(item.industry).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('');
+  return `
+    <div class="popup-card">
+      <h3>${item.name||'-'}</h3>
+      <div class="row"><b>대표</b> ${item.ceo||'-'} · <b>사원수</b> ${item.employees||'-'}</div>
+      <div class="row"><b>매출</b> ${item.revenue||'-'}</div>
+      <div class="row"><b>주소</b> ${item.address||'-'}</div>
+      <div class="row"><b>점수</b> ${item.score ?? '-'} 점 ${item.reason ? '· '+item.reason : ''}</div>
+      <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">${tagList}</div>
+      ${item.detail_url ? `<a href="${item.detail_url}" target="_blank">상세페이지 →</a>` : ''}
+    </div>
+  `;
+}
+
+function safeTags(industry){
+  if(!industry) return [];
+  if(Array.isArray(industry)) return industry;
+  const m = String(industry).match(/'([^']+)'/g);
+  if(m) return m.map(s=>s.replace(/'/g,''));
+  return [String(industry)];
+}
+
+function scoreRingSvg(score){
+  const s = Math.max(0, Math.min(MAX_SCORE, score||0));
+  const pct = s / MAX_SCORE;
+  const r = 18, c = 2*Math.PI*r;
+  const offset = c - pct*c;
+  const color = scoreColor(s);
+  const label = (score===null || score===undefined) ? '-' : (Number.isInteger(score) ? score : score.toFixed(1));
+  return `
+    <svg width="44" height="44" viewBox="0 0 44 44">
+      <circle cx="22" cy="22" r="${r}" fill="none" stroke="#eee7d8" stroke-width="4"/>
+      <circle cx="22" cy="22" r="${r}" fill="none" stroke="${color}" stroke-width="4"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+    </svg>
+    <div class="num">${label}</div>
+  `;
+}
+
+function renderList(){
+  const list = document.getElementById('list');
+  const q = document.getElementById('search').value.trim().toLowerCase();
+
+  let filtered = DATA.filter(d => {
+    if(activeFilter !== 'all' && priorityKey(d.priority) !== activeFilter) return false;
+    if(!q) return true;
+    const hay = `${d.name||''} ${d.address||''} ${d.industry||''} ${d.ceo||''}`.toLowerCase();
+    return hay.includes(q);
+  });
+  filtered.sort((a,b) => (b.score||0) - (a.score||0));
+
+  document.getElementById('count-label').textContent = `${filtered.length}개 기업`;
+
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty">조건에 맞는 기업이 없습니다</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(d => `
+    <div class="card ${d.__id===selectedId?'selected':''} ${routeSelection.has(d.__id)?'in-route':''}" data-id="${d.__id}">
+      <input type="checkbox" class="card-check" data-id="${d.__id}" ${routeSelection.has(d.__id)?'checked':''} title="오늘 방문 루트에 추가" />
+      <div class="score-ring">${scoreRingSvg(d.score)}</div>
+      <div class="card-body">
+        <div class="card-top">
+          <span class="card-name">${d.name||'-'}</span>
+          <span class="badge ${priorityKey(d.priority)}">${d.priority||'-'}</span>
+        </div>
+        <div class="card-meta">${d.address||'-'}</div>
+        <div class="card-tags">${safeTags(d.industry).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+      </div>
+    </div>
+  `).join('');
+
+  filtered.forEach(d => {
+    const m = makeMarker(d, d.__id);
+    m.addTo(map);
+    markers[d.__id] = m;
+  });
+
+  list.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if(e.target.classList.contains('card-check')) return;
+      selectItem(parseInt(card.dataset.id), false);
+    });
+  });
+  list.querySelectorAll('.card-check').forEach(cb => {
+    cb.addEventListener('click', (e) => e.stopPropagation());
+    cb.addEventListener('change', (e) => toggleRouteSelection(parseInt(e.target.dataset.id), e.target.checked));
+  });
+}
+
+function selectItem(id, fromMap){
+  selectedId = id;
+  const item = DATA.find(d => d.__id === id);
+  if(!item) return;
+
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.toggle('selected', parseInt(c.dataset.id) === id);
+  });
+  const selCard = document.querySelector(`.card[data-id="${id}"]`);
+  if(selCard && !fromMap) selCard.scrollIntoView({block:'nearest', behavior:'smooth'});
+
+  map.flyTo([item.lat, item.lng], 15, {duration:0.5});
+  if(markers[id]) markers[id].openPopup();
+}
+
+function updateStats(){
+  document.getElementById('stat-total').textContent = DATA.length;
+  document.getElementById('stat-high').textContent = DATA.filter(d=>priorityKey(d.priority)==='A').length;
+  const scores = DATA.map(d=>d.score).filter(s=>s!==null && s!==undefined);
+  const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '-';
+  document.getElementById('stat-avg').textContent = avg;
+}
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter = chip.dataset.p;
+    renderList();
+  });
+});
+document.getElementById('search').addEventListener('input', renderList);
+
+// ==================================================================
+// 방문 루트 기능
+// ==================================================================
+const MAX_ROUTE_STOPS = 6;
+
+function toggleRouteSelection(id, checked){
+  if(checked){
+    if(routeSelection.size >= MAX_ROUTE_STOPS){
+      alert(`하루 최대 ${MAX_ROUTE_STOPS}곳까지만 선택할 수 있어요.`);
+      const cb = document.querySelector(`.card-check[data-id="${id}"]`);
+      if(cb) cb.checked = false;
+      return;
+    }
+    routeSelection.add(id);
+  } else {
+    routeSelection.delete(id);
+  }
+  document.querySelector(`.card[data-id="${id}"]`)?.classList.toggle('in-route', checked);
+  updateRouteCount();
+  clearRouteResult();
+}
+
+function updateRouteCount(){
+  document.getElementById('route-count').textContent = `${routeSelection.size} / ${MAX_ROUTE_STOPS} 선택`;
+  document.getElementById('btn-calc-route').disabled = routeSelection.size === 0;
+}
+
+function clearRouteResult(){
+  document.getElementById('route-result').style.display = 'none';
+  document.getElementById('route-result').innerHTML = '';
+  if(routeLine){ map.removeLayer(routeLine); routeLine = null; }
+  routeNumMarkers.forEach(m => map.removeLayer(m));
+  routeNumMarkers = [];
+}
+
+document.getElementById('btn-auto6').addEventListener('click', () => {
+  routeSelection.clear();
+  const cluster = nearestNeighborOrder(startPoint, DATA).slice(0, MAX_ROUTE_STOPS);
+  cluster.forEach(d => routeSelection.add(d.__id));
+  renderList();
+  updateRouteCount();
+  clearRouteResult();
+});
+
+document.getElementById('btn-clear-route').addEventListener('click', () => {
+  routeSelection.clear();
+  renderList();
+  updateRouteCount();
+  clearRouteResult();
+});
+
+document.getElementById('btn-geolocate').addEventListener('click', () => {
+  const btn = document.getElementById('btn-geolocate');
+  if(!navigator.geolocation){
+    alert('이 브라우저는 위치 정보를 지원하지 않아요. 화곡로 350을 출발지로 사용할게요.');
+    return;
+  }
+  const originalText = btn.textContent;
+  btn.textContent = '📍 위치 확인 중...';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      startPoint = { lat: latitude, lng: longitude, name: '출발지 (내 현재 위치)' };
+      if(userMarker) map.removeLayer(userMarker);
+      const icon = L.divIcon({ className:'', html:`<div class="user-dot"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
+      userMarker = L.marker([latitude, longitude], {icon, zIndexOffset:1000})
+        .bindPopup('<b>내 현재 위치</b>')
+        .addTo(map);
+      renderHomeMarker();
+      document.getElementById('route-start-label').textContent = '출발: 내 현재 위치';
+      btn.textContent = '📍 내 위치 사용중';
+      btn.classList.add('active');
+      map.flyTo([latitude, longitude], 14, {duration:0.6});
+      clearRouteResult();
+    },
+    (err) => {
+      btn.textContent = originalText;
+      const messages = {
+        1: '브라우저에서 이 페이지에 대한 위치 권한이 실제로는 거부된 상태예요.\n주소창 왼쪽 자물쇠(또는 사이트 정보) 아이콘 → 위치 → "허용"으로 바꾼 뒤 새로고침 해보세요.',
+        2: '위치를 확인할 수 없어요 (POSITION_UNAVAILABLE).\n\n가장 흔한 원인은 Windows/macOS의 "시스템 위치 서비스"가 꺼져 있는 경우예요. 브라우저 권한과는 별개로:\n\nWindows: 설정 → 개인정보 및 보안 → 위치 → 켜기\nmacOS: 시스템 설정 → 개인정보 보호 및 보안 → 위치 서비스 → 브라우저 허용\n\n이걸 켠 뒤 다시 시도해보세요. VPN을 쓰고 있다면 잠시 꺼보는 것도 도움이 될 수 있어요.',
+        3: '위치 확인 시간이 초과됐어요. 네트워크가 느리거나 위치 서비스 응답이 늦은 경우예요. 다시 한번 눌러보세요.'
+      };
+      alert((messages[err.code] || `위치 정보를 가져오지 못했어요 (${err.message})`) + '\n\n안 되면 화곡로 350을 출발지로 계속 사용하시면 돼요.');
+      console.warn('Geolocation error:', err.code, err.message);
+    },
+    { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+  );
+});
+
+async function fetchOsrmTrip(coords){
+  // coords: [{lat,lng}, ...] 첫 번째가 출발지
+  const coordStr = coords.map(c => `${c.lng},${c.lat}`).join(';');
+  const url = `https://router.project-osrm.org/trip/v1/driving/${coordStr}?roundtrip=false&source=first&destination=any&overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('OSRM 응답 실패');
+  const data = await res.json();
+  if(data.code !== 'Ok') throw new Error('OSRM 경로 계산 실패: ' + data.code);
+  return data;
+}
+
+function nearestNeighborOrder(start, stops){
+  // OSRM 실패시 폴백: 단순 최근접 이웃 휴리스틱 (직선거리 기준)
+  const remaining = [...stops];
+  const order = [];
+  let cur = start;
+  while(remaining.length){
+    let bestIdx = 0, bestDist = Infinity;
+    remaining.forEach((s, i) => {
+      const d = haversine(cur.lat, cur.lng, s.lat, s.lng);
+      if(d < bestDist){ bestDist = d; bestIdx = i; }
+    });
+    const next = remaining.splice(bestIdx, 1)[0];
+    order.push(next);
+    cur = next;
+  }
+  return order;
+}
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function drawRoute(orderedStops, geometry){
+  clearRouteResult();
+
+  // 순번 마커
+  orderedStops.forEach((s, i) => {
+    const icon = L.divIcon({ className:'', html:`<div class="num-marker">${i+1}</div>`, iconSize:[26,26], iconAnchor:[13,13] });
+    const m = L.marker([s.lat, s.lng], {icon, zIndexOffset:500})
+      .bindPopup(`<b>${i+1}. ${s.name}</b><br>${s.address||''}`)
+      .addTo(map);
+    routeNumMarkers.push(m);
+  });
+
+  // 경로선
+  let latlngs;
+  if(geometry){
+    latlngs = geometry.coordinates.map(c => [c[1], c[0]]);
+  } else {
+    latlngs = [[startPoint.lat, startPoint.lng], ...orderedStops.map(s=>[s.lat, s.lng])];
+  }
+  routeLine = L.polyline(latlngs, { color:'#1c3a3a', weight:4, opacity:0.85, dashArray: geometry ? null : '6 6' }).addTo(map);
+
+  const bounds = L.latLngBounds([[startPoint.lat, startPoint.lng], ...orderedStops.map(s=>[s.lat,s.lng])]);
+  map.fitBounds(bounds, {padding:[50,50]});
+}
+
+function renderRouteResult(orderedStops, distanceKm, durationMin, isFallback){
+  const box = document.getElementById('route-result');
+  const stopsHtml = [
+    `<div class="route-stop"><div class="seq home">🏠</div><div class="route-stop-name">${startPoint.name}</div></div>`,
+    ...orderedStops.map((s,i) => `<div class="route-stop"><div class="seq">${i+1}</div><div class="route-stop-name">${s.name}</div></div>`)
+  ].join('');
+
+  box.innerHTML = `
+    <div class="route-summary">
+      <div><b>${distanceKm.toFixed(1)} km</b>총 이동거리</div>
+      <div><b>${Math.round(durationMin)}분</b>예상 소요시간</div>
+    </div>
+    ${stopsHtml}
+    <div class="route-note">${isFallback
+      ? '⚠️ 실시간 도로 경로 계산에 실패해 직선거리 기준 순서로 대체했어요. 실제 도로 상황과 다를 수 있어요.'
+      : '오픈소스 라우팅(OSRM) 기준 추정치이며, 실제 소요시간은 교통 상황에 따라 달라질 수 있어요.'}</div>
+  `;
+  box.style.display = 'block';
+}
+
+document.getElementById('btn-calc-route').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-calc-route');
+  const selectedStops = DATA.filter(d => routeSelection.has(d.__id));
+  if(selectedStops.length === 0) return;
+
+  btn.disabled = true;
+  btn.textContent = '경로 계산 중...';
+
+  try {
+    const coords = [startPoint, ...selectedStops];
+    const trip = await fetchOsrmTrip(coords);
+
+    // waypoints[0]은 출발지, waypoint_index로 방문 순서 확인
+    const wps = trip.waypoints.slice(1); // 출발지 제외
+    const ordered = wps
+      .map((w, i) => ({ stop: selectedStops[i], order: w.waypoint_index }))
+      .sort((a,b) => a.order - b.order)
+      .map(x => x.stop);
+
+    const leg = trip.trips[0];
+    drawRoute(ordered, leg.geometry);
+    renderRouteResult(ordered, leg.distance/1000, leg.duration/60, false);
+  } catch(err){
+    console.warn('OSRM 실패, 직선거리 폴백 사용:', err);
+    const ordered = nearestNeighborOrder(startPoint, selectedStops);
+    let totalKm = 0;
+    let cur = startPoint;
+    ordered.forEach(s => { totalKm += haversine(cur.lat, cur.lng, s.lat, s.lng); cur = s; });
+    const estMin = totalKm / 30 * 60; // 시속 30km 가정
+    drawRoute(ordered, null);
+    renderRouteResult(ordered, totalKm, estMin, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '경로 계산하기';
+  }
+});
+
+updateRouteCount();
+
+// ---- 데이터 로딩 지점 (아래에서 실제 데이터로 교체됨) ----
+// ---- 데이터 (파일에 직접 내장 — 서버 없이 file://로 열어도 동작) ----
+const RAW_DATA = [{"name": "(주)키멕스항공해운", "ceo": "김양수", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "30 명", "founded": "2000년 1월 6일 (업력 27년차)", "revenue": "348억 7,512만원 (2025년 기준)", "homepage": "www.kimexairsea.com", "address": "서울 강서구 화곡로 416, 1013동 1018호 (등촌동,가양역더스카이밸리5차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Vk9EcDVGbmlNclNUclYreFVGbnJUQT09", "score": 9.0, "priority": "A", "reason": "사원수 30명으로 10~50명 구간에 해당하여 2점, 매출액 348억 원으로 300억~1,000억 구간에 해당하여 1점, 공식 홈페이지 존재로 1점, 주소가 오피스텔(더스카이밸리)로 사무실 성격이 뚜렷하여 2점, 업종이 화물운송 중개 및 항공/해상 무역 관련으로 국제물류·포워딩에 해당하여 2점, 중소기업으로 1점을 부여하여 총 9점으로 A등급입니다.", "lat": 37.5600240146894, "lng": 126.855419700734}, {"name": "(주)신펙스커넥션로지스틱", "ceo": "손성식", "type": "중소기업, 외국인 투자기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "9 명 (2025년 기준)", "founded": "2020년 5월 18일 (업력 7년차)", "revenue": "46억 6,033만원 (2025년 기준)", "homepage": "www.sinpex-kr.com", "address": "서울 강서구 공항대로 212, A동 11층 1108호 (마곡동,문영퀸즈파크11차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OUlFaFpCSWY1aCs5KzhyQ3NBYTBPZz09", "score": 8.5, "priority": "A", "reason": "사원수 9명으로 5~9명 구간에 해당하여 1점, 매출액 약 46.6억 원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재하여 1점, 주소가 서울 강서구 오피스 건물 내 사무실로 판단되어 2점, 업종이 화물운송 중개·대리로 국제물류·포워딩 관련성이 높아 2점, 중소기업·주식회사로 1점을 부여하여 총점 8.5점으로 A등급.", "lat": 37.5588248070734, "lng": 126.831007635455}, {"name": "(주)사람인에이치에스", "ceo": "이성권", "type": "중견기업, 외부감사법인, 주식회사", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": null, "founded": "2016년 5월 2일 (업력 11년차)", "revenue": "358억 3,726만원 (2023년 기준)", "homepage": "http://www.saraminhs.co.kr", "address": "서울 강서구 공항대로 165, C동 10층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Qm45c1kvejJ2R2poN1NMTDgxK1RsUT09", "score": 4.5, "priority": "C", "reason": "사원수 정보 없음(0점), 매출액 358억으로 300억~1000억 구간(1점), 홈페이지 존재(1점), 주소는 오피스 건물로 판단(2점), 업종은 인력공급으로 물류·자동화 관련성 낮음(0점), 중견기업(0.5점). 총점 4.5점으로 C등급.", "lat": 37.5608751008131, "lng": 126.824695969186}, {"name": "큐브플랫폼(주)", "ceo": "김상우", "type": "중소기업", "industry": "그 외 기타 정보 서비스업", "employees": "13 명 (2026년 기준)", "founded": "2018년 4월 3일 (업력 9년차)", "revenue": "49억 3,490만원 (2024년 기준)", "homepage": "http://cubeplatform.co.kr", "address": "서울 강서구 양천로 401, 제7층 제에이-704호,705호 (가양동,강서한강자이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=QjM3TEJaVnhTZWFEQllaWmZ2RTJaQT09", "score": 9.5, "priority": "A", "reason": "사원수 13명으로 10~50명 구간에 해당하여 2점, 매출액 약 49.3억 원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재로 1점, 주소가 오피스(강서한강자이타워)로 사무실 환경으로 판단되어 2점, 업종이 물류·통관 관련 키워드(포워더, 통관, 물류관리)로 직접 관련되어 2점, 중소기업으로 1점을 부여하여 총 9.5점으로 A등급입니다.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "(주)디인사이트", "ceo": "이승환", "type": "중소기업", "industry": "그 외 기타 분류 안된 운송 관련 서비스업", "employees": "10 명 (2026년 기준)", "founded": "2022년 8월 19일 (업력 5년차)", "revenue": "111억 7,814만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 마곡중앙8로 14, 408호 (마곡동,서울창업허브엠플러스)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=YnFkbXo4bWc1ZVRKYmQ5VkQ5Snl2Zz09", "score": 9.0, "priority": "A", "reason": "사원수 10명으로 최적 규모(2점), 매출액 111억 원으로 50~300억 구간(2점), 홈페이지 정보 없음(0점), 주소가 서울창업허브 내 오피스로 사무실 성격(2점), 국제물류·포워딩 업종으로 적합성 높음(2점), 중소기업(1점)으로 총 9점.", "lat": 37.5613811989992, "lng": 126.828940360886}, {"name": "㈜신세계아이티에스", "ceo": "박홍선", "type": "중소기업, 주식회사", "industry": "택배업", "employees": "17 명 (2016년 기준)", "founded": "1999년 7월 1일 (업력 28년차)", "revenue": "54억 1,658만원 (2016년 기준)", "homepage": "www.ssgits.co.kr", "address": "서울 강서구 공항대로10길 8", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZHRaUnlqVkpxa2FVN2RiZExYSXJRQT09", "score": 9.5, "priority": "A", "reason": "사원수 17명으로 10~50명 구간에 해당하여 2점, 매출액 약 54억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(서울 강서구 공항대로10길 8)로 판단되어 2점, 업종이 택배업으로 일반 물류·운송 관련성이 높아 1.5점, 중소기업·주식회사로 1점을 부여함.", "lat": 37.5606524820368, "lng": 126.812906983082}, {"name": "(주)아이씨에스로지스틱스", "ceo": "정준화", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "31 명 (2026년 기준)", "founded": "2016년 7월 19일 (업력 11년차)", "revenue": "362억 1,152만원 (2025년 기준)", "homepage": "http://www.icskr.co.kr/?lang=ko-KR", "address": "서울 강서구 강서로52길 50, 3층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=R1JHWGZpK2I2WjVCRC9BVngxay8wUT09", "score": 9.0, "priority": "A", "reason": "사원수 31명으로 10~50명 구간에 해당하여 2점, 매출액 362억 원으로 300억~1,000억 구간에 해당하여 1점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(3층)로 판단되어 2점, 업종이 화물운송 중개 및 관련 서비스로 물류·통관 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총 9점으로 A등급.", "lat": 37.5574676690394, "lng": 126.840887595578}, {"name": "(주)두라로지스틱스", "ceo": "김성호", "type": "중소기업, 주식회사", "industry": "택배업", "employees": "95 명 (2026년 기준)", "founded": "2003년 6월 12일 (업력 24년차)", "revenue": "298억 3,793만원 (2025년 기준)", "homepage": "http://doora.co.kr", "address": "서울 강서구 금낭화로 54-7, 1층 (방화동,동해빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OGV5dmxHL2dkT3BkcDgyY2xtSjBvZz09", "score": 8.0, "priority": "A", "reason": "사원수 95명은 51~100명 구간으로 1점, 매출액 약 298억 원은 50억~300억 구간으로 2점, 공식 홈페이지 존재로 1점, 주소는 동해빌딩 1층으로 상업용 건물 내 사무실로 판단되어 1점, 업종이 택배업이고 관련 키워드에 국제물류가 포함되어 2점, 중소기업으로 1점을 부여하여 총 8점으로 A등급.", "lat": 37.5704412994156, "lng": 126.812143443904}, {"name": "(주)네슈라항운", "ceo": "권오덕", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "15 명 (2021년 기준)", "founded": "1993년 9월 13일 (업력 34년차)", "revenue": "118억 1,877만원 (2021년 기준)", "homepage": "www.nesura.co.kr", "address": "서울 강서구 공항대로 518, 4층,5층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=b1J2enZIOXQwbTk0RHhtNm5ld0pKQT09", "score": 10.0, "priority": "A", "reason": "사원수 15명으로 10~50명 구간에 해당하여 2점, 매출액 약 118억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실 건물로 판단되어 2점, 국제물류·포워딩 업종으로 2점, 중소기업으로 1점을 부여하여 총점 10점입니다.", "lat": 37.5510287981739, "lng": 126.863577264226}, {"name": "(주)케이제이디로지스틱스코리아", "ceo": "홍빈", "type": "중소기업, 외국 법인기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "49 명 (2026년 기준)", "founded": "2018년 7월 6일 (업력 9년차)", "revenue": "1,204억 3,019만원 (2025년 기준)", "homepage": "https://www.kjdkorea.com/", "address": "서울 강서구 마곡중앙2로 35, 8층, 813호,814호,815호,816호,817호,818호,819호,820호,821호,822호 (마곡동,이너매스마곡2)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OVRGcXRDRVh2SVYxWTRYQzVXUHdHZz09", "score": 8.5, "priority": "A", "reason": "사원수 49명으로 10~50명 구간에 해당하여 2점, 매출액 1,204억 원으로 1,000억 초과 구간에 해당하여 0.5점, 공식 홈페이지 존재로 1점, 주소가 오피스 건물(이너매스마곡2) 내 사무실로 판단되어 2점, 업종이 화물운송 중개·대리 및 관련 서비스업으로 국제물류·포워딩·통관 관련 키워드가 있어 2점, 기업형태가 중소기업으로 1점을 부여하여 총점 8.5점으로 A등급입니다.", "lat": 37.5579650314969, "lng": 126.830661784149}, {"name": "(주)베스코해운항공", "ceo": null, "type": "중소기업, 주식회사", "industry": null, "employees": "4 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": "http://www.besko.kr/", "address": "서울 영등포구 선유로49길 23, 204호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=SUhGS1h6cjRTR2xsN29BZDVyQml4QT09", "score": 6.0, "priority": "B", "reason": "사원수 4명으로 0점, 매출액 정보 없음으로 0점, 홈페이지 존재로 1점, 주소가 오피스(204호)로 사무실로 판단되어 2점, 업종이 국제물류(포워더)로 2점, 기업형태가 중소기업으로 1점. 총점 6점으로 B등급.", "lat": 37.5361864712485, "lng": 126.895059294005}, {"name": "(주)아이로지스코리아", "ceo": "홍성열", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "17 명 (2021년 기준)", "founded": "2013년 11월 15일 (업력 14년차)", "revenue": "238억 7,000만원 (2021년 기준)", "homepage": "www.i-logiskorea.com", "address": "서울 강서구 양천로 551-24, 1303호, 1304호 (가양동,한화비즈메트로2차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=MXYwVGJ1RVlxNThJK1M0by9QeVJ5UT09", "score": 10.0, "priority": "A", "reason": "사원수 17명으로 10~50명 구간에 해당하여 2점, 매출액 238.7억 원으로 50~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 한화비즈메트로2차 내 사무실(1303호, 1304호)로 일반 오피스로 판단되어 2점, 업종이 화물운송 중개·대리 및 국제물류 관련 키워드로 직접 관련되어 2점, 중소기업·주식회사로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5588704565214, "lng": 126.861958550884}, {"name": "(주)뉴포트인터내셔날", "ceo": "박관일", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "6 명 (2026년 기준)", "founded": "2020년 12월 14일 (업력 7년차)", "revenue": "155억 8,310만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 공항대로 248, 3층 301호 302호 (마곡동,대방건설빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZmRQNjA5cmtYMVMrZ2xzSVdVS2ZWUT09", "score": 8.0, "priority": "A", "reason": "사원수 6명으로 5~9명 구간에 해당하여 1점, 매출액 약 155.8억 원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보가 없어 0점, 주소가 일반 사무실(대방건설빌딩 3층)로 판단되어 2점, 업종이 화물운송 중개·대리로 국제물류·포워딩 관련성이 높아 2점, 기업형태가 중소기업으로 1점을 부여함.", "lat": 37.5584038640061, "lng": 126.834893863585}, {"name": "멀티항공해운(주)", "ceo": "오명열", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "10 명 (2021년 기준)", "founded": "1991년 9월 6일 (업력 36년차)", "revenue": "86억 6,000만원 (2021년 기준)", "homepage": "www.multicgo.co.kr", "address": "서울 강서구 양천로 401, A동 1102호 (가양동,강서한강자이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=aVN4ZWd0S0pTaHI1Ukp0d0wwS2IvUT09", "score": 9.5, "priority": "A", "reason": "사원수 10명으로 최적 규모(2점), 매출 86.6억으로 10~50억 구간(1.5점), 공식 홈페이지 존재(1점), 주소가 오피스(강서한강자이타워)로 사무실(2점), 국제물류 포워딩 업종(2점), 중소기업(1점)으로 총 9.5점.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "(주)알베스타시스템", "ceo": "조용진", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "13 명 (2022년 기준)", "founded": "2004년 12월 14일 (업력 23년차)", "revenue": "290억원 (2022년 기준)", "homepage": "http://www.albester.co.kr/", "address": "서울 강서구 양천로 551-24, 407호,408호 (가양동,한화비즈메트로2차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=blBNZDB6aTZKcGtWbzkrZHpXVHlXZz09", "score": 10.0, "priority": "A", "reason": "사원수 13명으로 10~50명 구간에 해당하여 2점, 매출액 290억원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 한화비즈메트로(지식산업센터) 내 사무실로 판단되어 2점, 국제물류 포워딩 업종으로 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급.", "lat": 37.5588704565214, "lng": 126.861958550884}, {"name": "(주)유진로지스", "ceo": "국필교", "type": "중소기업, 외부감사법인, 주식회사", "industry": "기타 수상 운송지원 서비스업", "employees": "7 명 (2026년 기준)", "founded": "2022년 2월 10일 (업력 5년차)", "revenue": "42억 9,787만원 (2024년 기준)", "homepage": null, "address": "서울 강서구 마곡중앙로 59-11, 603호 (마곡동,엠비즈타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bzh5NmpVOVBnaHFrV2ZoOVJHVzRuUT09", "score": 7.5, "priority": "B", "reason": "사원수 7명으로 5~9명 구간(1점), 매출액 약 42.9억 원으로 10~50억 구간(1.5점), 홈페이지 정보 없음(0점), 주소는 오피스 건물(엠비즈타워)로 사무실(2점), 업종이 기타 수상 운송지원 서비스업이고 키워드에 포워더, 국제물류, 선적이 있어 국제물류 관련(2점), 기업형태가 중소기업(1점)으로 총 7.5점으로 B등급.", "lat": 37.5588673711048, "lng": 126.82527641154}, {"name": "일신케미칼(주)", "ceo": "김진웅", "type": "중소기업, 수출입 기업", "industry": "벽 및 바닥 피복용 플라스틱제품 제조업", "employees": "230 명 (2025년 기준)", "founded": "2006년 1월 1일 (업력 21년차)", "revenue": "1,503억 5,481만원 (2025년 기준)", "homepage": "www.acefloor.co.kr", "address": "충남 당진시 정미면 상구실로 133", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bFg4QUxIbGpOdndNWm1uUVE5MVdmQT09", "score": 3.0, "priority": "C", "reason": "사원수 230명으로 201명 이상이므로 0점, 매출액 1503억원으로 1000억 초과이므로 0.5점, 홈페이지 존재로 1점, 주소는 도로명 주소로 사무실 여부 불명확하여 0점, 업종은 제조업으로 물류·데이터 업무와 간접 관련이 있어 0.5점, 기업형태는 중소기업으로 1점. 총점 3점으로 C등급.", "lat": 36.8892005349903, "lng": 126.580071818094}, {"name": "케이에스웨이즈(주)", "ceo": "김상국", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "4 명 (2026년 기준)", "founded": "2018년 3월 19일 (업력 9년차)", "revenue": "24억 2,833만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 화곡로68길 82, 309호 (등촌동,강서아이티밸리)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=TlBqaXBQVDhkaWd2WFp6bGFwTkQ4dz09", "score": 6.5, "priority": "B", "reason": "사원수 4명으로 0점, 매출액 24억으로 1.5점, 홈페이지 없음 0점, 주소가 지식산업센터(강서아이티밸리)로 사무실 2점, 업종이 국제물류·포워딩 관련 2점, 중소기업 1점. 총 6.5점으로 B등급.", "lat": 37.5575393170801, "lng": 126.858301786025}, {"name": "(주)조인어스", "ceo": "백승훈", "type": "중소기업, 주식회사", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": "170 명 (2026년 기준)", "founded": "2022년 1월 17일 (업력 5년차)", "revenue": null, "homepage": "www.join-us.kr", "address": "경기 화성시 동탄구 동탄산단4길 37, 5층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=N0Ivc1JoYXFQbWpOMWlaVXdXUXRodz09", "score": 4.5, "priority": "C", "reason": "사원수 170명은 101~200명 구간으로 0.5점, 매출액 정보 없음으로 0점, 홈페이지 존재로 1점, 주소는 일반 사무실(5층)로 2점, 업종은 인력공급·사무지원으로 자동화 서비스와 관련성이 낮아 0점, 기업형태는 중소기업으로 1점. 총점 4.5점으로 C등급.", "lat": 37.165466959593, "lng": 127.089902287529}, {"name": "(주)이씨엘글로벌코리아", "ceo": "유성곤", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "18 명 (2024년 기준)", "founded": "2018년 10월 17일 (업력 9년차)", "revenue": "182억 4,187만원 (2024년 기준)", "homepage": "https://eclkorea.co.kr/", "address": "서울 강서구 양천로 401, 비509호 (가양동,강서한강자이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VUh1WlVUOEVYWWo3dHF1a3NNQldSQT09", "score": 10.0, "priority": "A", "reason": "사원수 18명으로 10~50명 구간에 해당하여 2점, 매출액 약 182억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 오피스(강서한강자이타워)로 사무실로 판단되어 2점, 업종이 화물운송 중개·대리로 국제물류·포워딩 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "바롬항공(주)", "ceo": "김광현", "type": "중소기업, 외부감사법인, 주식회사", "industry": "항공 화물 운송업", "employees": "45 명 (2024년 기준)", "founded": "2000년 1월 10일 (업력 27년차)", "revenue": "260억원 (2024년 기준)", "homepage": "www.baromair.com", "address": "서울 강서구 화곡로66길 58", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bGZCSWNBYVBqdWZ6YW51NHVwVmdsQT09", "score": 10.0, "priority": "A", "reason": "사원수 45명으로 10~50명 구간에 해당하여 2점, 매출액 260억원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(서울 강서구 화곡로66길 58)로 판단되어 2점, 항공 화물 운송업 및 포워더 키워드로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5568177714083, "lng": 126.856488612092}, {"name": "(주)에이시안트레이드", "ceo": "김순자", "type": "중소기업", "industry": "기타 화학물질 및 화학제품 도매업", "employees": null, "founded": "2009년 8월 18일 (업력 18년차)", "revenue": "17억 5,568만원 (2019년 기준)", "homepage": null, "address": "서울 강서구 공항대로 463, 6층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=UFVZeXp0OHU4aU5RMkdTQlFya1FFdz09", "score": 5.5, "priority": "B", "reason": "사원수 정보 없음(0점), 매출액 17.5억원으로 10~50억 구간(1.5점), 홈페이지 없음(0점), 주소가 일반 오피스 건물(2점), 업종이 화학제품 도매업으로 무역·데이터 업무와 간접 관련(1점), 중소기업(1점). 총점 5.5점으로 B등급.", "lat": 37.5540722129996, "lng": 126.858545557615}, {"name": "(주)헬만월드와이드로지스틱스", "ceo": "김광수", "type": "중소기업, 외국인 투자기업, 외부감사법인, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "68 명 (2026년 기준)", "founded": "1999년 4월 6일 (업력 28년차)", "revenue": "763억 9,468만원 (2025년 기준)", "homepage": "www.hellmann.com/en", "address": "서울 강서구 강서로 402, 10층 (등촌동,재영빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=V0tSak04Z3ZabVF3SzJkcVF2YVpsUT09", "score": 8.0, "priority": "A", "reason": "사원수 68명은 51~100명 구간으로 1점, 매출액 약 763.9억 원은 300억~1,000억 구간으로 1점, 공식 홈페이지 존재로 1점, 주소가 일반 사무실(재영빌딩 10층)로 2점, 업종이 화물운송 중개·대리로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총 8점으로 A등급.", "lat": 37.5613343715667, "lng": 126.839480554754}, {"name": "엠씨아이글로벌로지스틱스(주)", "ceo": "강성린, 정수경", "type": "중소기업, 주식회사", "industry": "택배업", "employees": "187 명 (2021년 기준)", "founded": "1992년 9월 1일 (업력 35년차)", "revenue": "2,392억 2,706만원 (2021년 기준)", "homepage": null, "address": "서울 강서구 공항대로 471", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=L0IrV1hLOVFqanJEbFlHZkhDV0dwZz09", "score": 6.0, "priority": "B", "reason": "사원수 187명은 101~200명 구간으로 0.5점, 매출액 약 2,392억 원은 1,000억 초과로 0.5점, 홈페이지 정보 없음으로 0점, 주소는 일반 사무실로 판단되어 2점, 업종이 택배업이고 관련 키워드에 포워더·국제물류가 있어 2점, 기업형태가 중소기업·주식회사로 1점. 총점 6점으로 B등급.", "lat": 37.5538163507103, "lng": 126.859317187076}, {"name": "조양국제종합물류(주)", "ceo": "김성우", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "230 명 (2022년 기준)", "founded": "1978년 2월 13일 (업력 49년차)", "revenue": "682억원 (2022년 기준)", "homepage": "http://www.joyang.com/", "address": "서울 강서구 강서로 406, 3층 (등촌동,동광빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VjRhcHFpVTI0VVcwRHc4bHdzdk5NZz09", "score": 6.0, "priority": "B", "reason": "사원수 230명으로 201명 이상이므로 0점, 매출액 682억원으로 300억~1000억 구간이므로 1점이 아닌 0.5점 (기준: 1000억 초과 0.5점, 300~1000억 1점이지만 682억은 300~1000억이므로 1점이 맞으나, 기준에 따라 300~1000억은 1점, 1000억 초과는 0.5점이므로 682억은 1점이어야 함. 그러나 매출액이 682억이므로 300~1000억 구간에 해당하여 1점이 맞음. 하지만 위 점수는 0.5로 잘못 기재됨. 실제로는 1점이어야 함. 수정 필요. 또한 업종은 화물운송 중개로 일반 물류 관련이므로 1.5점, 주소는 오피스 건물 3층이므로 2점, 홈페이지 존재 1점, 기업형태 중소기업 1점. 총점은 0+1+1+2+1.5+1=6.5점이지만 소수점이므로 6점으로 반올림? 규칙상 소수점 허용? total_score는 합과 일치해야 하므로 6.5가 맞으나, 출력 예시는 정수로 되어 있으나 소수점 가능. 여기서는 6.5로 계산하고 반올림하지 않음. 그러나 위 JSON은 6으로 잘못됨. 정확히 계산하면 0+1+1+2+1.5+1=6.5, total_score는 6.5, priority는 5~7이므로 B. reason에 정확히 설명.", "lat": 37.561754005363, "lng": 126.839642637658}, {"name": "(주)에스아이티씨로지스틱스코리아", "ceo": "권오준", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "49 명 (2026년 기준)", "founded": "2000년 1월 12일 (업력 27년차)", "revenue": "1,103억 9,293만원 (2025년 기준)", "homepage": "www.sitc.co.kr", "address": "서울 강서구 양천로 583, A동 501,502호 (염창동,우림블루나인비즈니스센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VG5XWmlBVm41THk3Nmg1WERVRnk5QT09", "score": 8.5, "priority": "A", "reason": "사원수 49명으로 10~50명 구간에 해당하여 2점, 매출액 약 1103억 원으로 1000억 초과 구간에 해당하여 0.5점, 공식 홈페이지 존재로 1점, 주소가 비즈니스센터 내 사무실로 판단되어 2점, 업종이 화물운송 중개 및 관련 서비스업으로 국제물류·통관 관련 키워드가 많아 2점, 중소기업으로 1점을 부여하여 총 8.5점으로 A등급입니다.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "에이디피글로벌 (주)", "ceo": "최낙현", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2001년 12월 11일 (업력 26년차)", "revenue": "124억 7,683만원 (2016년 기준)", "homepage": "www.adpair.co.kr", "address": "서울 강서구 공항대로 323 (등촌동,에이디피빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VVZhY29ESnBiUy9ldGs3cytkK1Vrdz09", "score": 8.0, "priority": "A", "reason": "사원수 정보가 없어 0점, 매출액 124억으로 2점, 홈페이지 존재 1점, 주소가 일반 사무실 건물로 판단되어 2점, 업종이 국제물류·포워딩 관련으로 2점, 중소기업으로 1점. 총 8점으로 A등급.", "lat": 37.5583375505883, "lng": 126.843697870185}, {"name": "(주)스카이매스터", "ceo": "문진남", "type": "중소기업, 외국인 투자기업, 외부감사법인, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "23 명 (2024년 기준)", "founded": "1992년 10월 22일 (업력 35년차)", "revenue": "276억 439만원 (2024년 기준)", "homepage": "www.skymaster.co.kr", "address": "서울 강서구 양천로 583, A동 1908-9호 (염창동,우림블루나인)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=amMreEVKcHVTSmFicHFuaWUwR1VTUT09", "score": 10.0, "priority": "A", "reason": "사원수 23명으로 10~50명 구간에 해당하여 2점, 매출액 276억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스(우림블루나인)로 사무실로 판단되어 2점, 업종이 화물운송 중개 및 관련 서비스로 국제물류·포워딩·관세 관련 키워드가 있어 2점, 기업형태가 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "이엑스메이트(주)", "ceo": "김계성", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "26 명 (2025년 기준)", "founded": "2023년 2월 22일 (업력 4년차)", "revenue": "109억 5,983만원 (2025년 기준)", "homepage": "www.exmate.net", "address": "서울 강서구 마곡동로3길 6, 1001호, 1002호, 1003호 (마곡동,엔와이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Wm5uVlNiLzN6UUJNUzYvajYrU3FBUT09", "score": 9.5, "priority": "A", "reason": "사원수 26명으로 10~50명 구간에 해당하여 2점, 매출액 약 109.6억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 오피스 건물(엔와이타워) 내 사무실로 판단되어 2점, 업종이 화물운송 중개·대리로 물류 관련성이 높아 1.5점, 중소기업·주식회사로 1점을 부여하여 총 9.5점으로 A등급입니다.", "lat": 37.5600800563689, "lng": 126.832639349443}, {"name": "트랙스로지스코리아(주)", "ceo": "김양훈/노현석", "type": "중소기업, 외국 법인기업, 주식회사", "industry": "택배업", "employees": "89 명 (2026년 기준)", "founded": "2009년 9월 4일 (업력 18년차)", "revenue": "161억 9,256만원 (2025년 기준)", "homepage": "http://www.tracxlogis.com", "address": "서울 강서구 마곡중앙8로7길 57, B동 905호, 906호, 907호 (마곡동,마곡아이파크디어반)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=WmwwN0lIejVKaXlwUnc1bkxONFJuUT09", "score": 9.0, "priority": "A", "reason": "사원수 89명은 51~100명 구간으로 1점, 매출액 약 162억원은 50~300억 구간으로 2점, 공식 홈페이지 존재로 1점, 주소는 오피스 건물(마곡아이파크디어반)으로 사무실로 판단되어 2점, 업종이 택배업이고 관련 키워드에 포워더, 보세사 등이 있어 물류·통관 관련성이 높아 2점, 기업형태가 중소기업으로 1점을 부여함.", "lat": 37.5661908750068, "lng": 126.839184670321}, {"name": "(주)시알로지텍", "ceo": "오승철", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "7 명 (2026년 기준)", "founded": "2005년 4월 14일 (업력 22년차)", "revenue": "52억 4,669만원 (2024년 기준)", "homepage": null, "address": "서울 강서구 양천로 424, 915호,916호 (등촌동,데시앙플렉스지식산업센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=R3NrZllrajBwajNMNEtUOVRvb1Z3QT09", "score": 8.0, "priority": "A", "reason": "사원수 7명으로 5~9명 구간에 해당하여 1점, 매출액 52억 원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보가 없어 0점, 주소가 지식산업센터 내 사무실로 판단되어 2점, 업종이 국제물류 관련으로 2점, 중소기업으로 1점을 부여하여 총 8점으로 A등급입니다.", "lat": 37.5642277147695, "lng": 126.847971033372}, {"name": "메인프레이트코리아(유)", "ceo": "도날드로버트브레이드", "type": "중소기업, 외국인 투자기업, 유한회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2020년 3월 4일 (업력 7년차)", "revenue": "191억 6,507만원 (2023년 기준)", "homepage": "www.mainfreight.com", "address": "서울 강서구 마곡중앙로 55, 811호 (마곡동,퀸즈파크써틴)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=QUhhYmdHYlZIOW9TL0J1WDZudUZrdz09", "score": 8.0, "priority": "A", "reason": "사원수 정보가 없어 0점, 매출액 191억 원으로 50억~300억 구간 2점, 공식 홈페이지 존재 1점, 주소가 오피스(퀸즈파크써틴)로 사무실 2점, 국제물류·포워딩 업종 2점, 중소기업 1점. 총 8점으로 A등급.", "lat": 37.5586163657293, "lng": 126.826261533211}, {"name": "(주)탑로지스틱스코리아", "ceo": "강호성", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "13 명 (2026년 기준)", "founded": "2009년 5월 20일 (업력 18년차)", "revenue": "105억 3,826만원 (2024년 기준)", "homepage": "http://www.topocean.com", "address": "서울 강서구 마곡동로 55, 3층 (마곡동,마커스빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Zll5dnVFNEtKR0sxN21ZS0FLUzBZQT09", "score": 10.0, "priority": "A", "reason": "사원수 13명으로 10~50명 구간에 해당하여 2점, 매출액 약 105억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(마커스빌딩 3층)로 판단되어 2점, 업종이 화물운송 중개 및 포워더로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5600682769751, "lng": 126.833037883356}, {"name": "(주)에이지엘", "ceo": "김진순", "type": "중소기업, 외부감사법인, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "60 명 (2026년 기준)", "founded": "2003년 9월 22일 (업력 24년차)", "revenue": "483억 6,975만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 양천로 583, A동 1207호 (염창동,우림블루나인비즈니스센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=TW1iNjVhbE1id2Nud29ONFdJM2xWUT09", "score": 8.0, "priority": "A", "reason": "사원수 60명은 51~100명 구간으로 1점, 매출액 483억 원은 50억~300억 구간으로 2점, 홈페이지 정보 없음으로 0점, 주소는 비즈니스센터 내 사무실로 2점, 업종이 국제물류·통관 관련으로 2점, 중소기업으로 1점. 총 8점으로 A등급.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "(주)해우지엘에스", "ceo": "김범석/김진일/김필용", "type": "중소기업, 외부감사법인", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "426 명 (2026년 기준)", "founded": "1983년 11월 30일 (업력 44년차)", "revenue": "970억 439만원 (2025년 기준)", "homepage": "www.haewoo.com", "address": "서울 강서구 강서로 402", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ajdKSU9zK0xYM0lRNlBUOWo1Q0NkQT09", "score": 7.0, "priority": "B", "reason": "사원수 426명으로 201명 이상이므로 0점, 매출액 970억원으로 300억~1000억 구간이므로 1점, 홈페이지 존재로 1점, 주소가 일반 사무실(서울 강서구)로 2점, 업종이 국제물류·포워딩 관련으로 2점, 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5613343715667, "lng": 126.839480554754}, {"name": "(주)동성항운", "ceo": "홍준표", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "1997년 11월 22일 (업력 30년차)", "revenue": null, "homepage": "www.dongsungkorea.com", "address": "서울 강서구 양천로 583, A동 1710,1711호 (염창동,우림블루나인)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZGVvMWZtTEtLUmpoTzdhOXRManZvZz09", "score": 6.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재, 일반 오피스 주소, 국제물류 관련 업종, 중소기업 형태로 총 6점.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "레샤코코리아(주)", "ceo": "김도균", "type": "중소기업, 외국인 투자기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "48 명 (2022년 기준)", "founded": "1999년 7월 1일 (업력 28년차)", "revenue": "514억 4,218만원 (2022년 기준)", "homepage": "http://www.leschaco.com", "address": "서울 강서구 마곡중앙로 105-7, 8층 (마곡동,케이스퀘어마곡업무시설디동)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=T3JROFMrWDRLVWFkUkZ5K052dUZXQT09", "score": 10.0, "priority": "A", "reason": "사원수 48명으로 10~50명 구간에 해당하여 2점, 매출액 514억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 업무시설(케이스퀘어마곡업무시설) 내 사무실로 판단되어 2점, 업종이 화물운송 중개·대리 및 관련 서비스업으로 국제물류·포워딩 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5629234842805, "lng": 126.826076887806}, {"name": "(주)유아이로지스틱스코리아", "ceo": "이진형", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "11 명 (2016년 기준)", "founded": "1999년 9월 17일 (업력 28년차)", "revenue": "80억 2,006만원 (2016년 기준)", "homepage": null, "address": "서울 강서구 양천로 551-24, B동 904호 (가양동,비즈메트로2차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=WDNIN1krUnhIWkVETS9lb3Z6VlE3dz09", "score": 9.0, "priority": "A", "reason": "사원수 11명으로 10~50명 구간에 해당하여 2점, 매출액 약 80억 원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보가 없어 0점, 주소가 비즈메트로2차 오피스텔로 사무실로 판단되어 2점, 국제물류·포워딩 업종으로 2점, 중소기업으로 1점을 부여하여 총 9점으로 A등급입니다.", "lat": 37.5588704565214, "lng": 126.861958550884}, {"name": "(주)월드넷로지스틱스", "ceo": "이진영", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2014년 3월 10일 (업력 13년차)", "revenue": null, "homepage": null, "address": "서울 강서구 공항대로 242, 910호, 911호 (마곡동,열린엠타워2)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZnIxQ2x0VjZOZ2o0a1lnNEh0S1I0dz09", "score": 5.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 정보 없음. 주소는 오피스 건물(열린엠타워2)로 사무실로 판단되어 2점. 업종이 화물운송 중개, 대리 및 관련 서비스업으로 국제물류·포워딩 관련성이 높아 2점. 기업형태가 중소기업, 주식회사로 1점. 총점 5점으로 B등급.", "lat": 37.5584801960397, "lng": 126.834327579685}, {"name": "티와이솔루션(주)", "ceo": "이용기", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "11 명 (2018년 기준)", "founded": "2012년 3월 21일 (업력 15년차)", "revenue": "88억 3,793만원 (2018년 기준)", "homepage": "www.tysolution.co.kr/", "address": "서울 강서구 양천로 551-17", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=WjVBa25VVGI0MjhJZWRMTTBxakI1QT09", "score": 9.5, "priority": "A", "reason": "사원수 11명으로 10~50명 구간에 해당하여 2점, 매출액 88억 원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재하여 1점, 주소가 서울 강서구 일반 사무실 건물로 판단되어 2점, 업종이 화물운송 중개 및 항공/해상운송, 포워더 등 국제물류 관련 키워드가 많아 2점, 중소기업으로 1점을 부여하여 총 9.5점으로 A등급.", "lat": 37.5591095584309, "lng": 126.860941198154}, {"name": "(주)지비와이엔", "ceo": "조승희", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2023년 12월 21일 (업력 4년차)", "revenue": null, "homepage": null, "address": "서울 강서구 강서로47길 165, 9층 901-145호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=eFd1ZTVNK3JaM3pjTm5rOFZKYnAzdz09", "score": 5.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 정보 없음. 주소는 서울 강서구의 일반 오피스 건물로 보여 2점. 업종이 화물운송 중개, 국제물류 관련으로 2점. 기업형태가 중소기업으로 1점.", "lat": 37.5534315567653, "lng": 126.826919545523}, {"name": "(주)엠티엘", "ceo": "강인성", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "10 명 (2023년 기준)", "founded": "2015년 1월 13일 (업력 12년차)", "revenue": "103억 8,564만원 (2023년 기준)", "homepage": "www.mtlb.co.kr", "address": "서울 강서구 공항대로 471", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=QWdGYWJKZ2FNS0I3eGFxdDdKbWZHQT09", "score": 10.0, "priority": "A", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 약 103.9억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 서울 강서구 공항대로의 일반 사무실로 판단되어 2점, 업종이 화물운송 중개·대리로 국제물류·포워딩 관련성이 높아 2점, 중소기업·주식회사로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.5538163507103, "lng": 126.859317187076}, {"name": "에이치앤프랜즈 주식회사", "ceo": "김항우", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "275 명 (2024년 기준)", "founded": "2004년 2월 1일 (업력 23년차)", "revenue": "1,363억 2,027만원 (2024년 기준)", "homepage": "www.hnfriends.com", "address": "인천 영종구 공항동로296번길 97-51 (운서동,지1블럭)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=MDZNd2JncG1EYUNWYWRvRk9XdDZyZz09", "score": 4.5, "priority": "C", "reason": "사원수 275명으로 201명 이상이므로 0점, 매출액 1363억원으로 1000억 초과이므로 0.5점, 홈페이지 존재로 1점, 주소가 '지1블럭'으로 사무실 여부 불명확하여 0점, 업종이 국제물류 관련으로 2점, 중소기업으로 1점. 총점 4.5점으로 C등급.", "lat": 37.4821199775443, "lng": 126.477363160307}, {"name": "(주)스카이게이트", "ceo": "홍창운", "type": "중소기업, 주식회사", "industry": "통관 대리 및 관련서비스업", "employees": "5 명 (2013년 기준)", "founded": "1996년 6월 20일 (업력 31년차)", "revenue": null, "homepage": "http://", "address": "서울 강서구 양천로 583, B동 1601호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=SDJTVzlWU0NCVGthNkFQbVdVMEpWQT09", "score": 6.0, "priority": "B", "reason": "사원수 5명으로 5~9명 구간에 해당하여 1점, 매출액 정보 없음으로 0점, 홈페이지 URL이 불완전하여 0점, 주소는 오피스텔로 보여 사무실로 판단하여 2점, 업종이 통관 대리로 국제물류 관련성이 높아 2점, 기업형태가 중소기업으로 1점을 부여함.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "(주)케이피씨씨앤에어", "ceo": "강민욱", "type": "중소기업", "industry": null, "employees": null, "founded": "2017년 7월 27일 (업력 10년차)", "revenue": null, "homepage": "http://www.kpclogis.co.kr", "address": "부산 동구 충장대로 160, A동 5404호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=SVFyRGZKQlN1MmVITDdYQVFKTkpCdz09", "score": 6.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재, 주소는 오피스(업무시설)로 판단, 업종이 국제물류·포워딩 관련으로 높은 점수, 기업형태는 중소기업으로 1점.", "lat": 35.1161032278979, "lng": 129.045124777437}, {"name": "(주)삼진해운", "ceo": "강정희", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2001년 11월 15일 (업력 26년차)", "revenue": "601억 2,300만원 (2021년 기준)", "homepage": "www.samjinace.co.kr", "address": "서울 강서구 양천로 401, A동 309호, 310호 (가양동,강서한강자이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Y0V6dmpnT0hsK3QzNjd6NXNRdWhXdz09", "score": 7.0, "priority": "B", "reason": "사원수 정보가 없어 0점, 매출액 601억 원으로 300억~1000억 구간 1점, 홈페이지 존재 1점, 주소가 오피스(강서한강자이타워)로 사무실 2점, 업종이 화물운송 중개·국제물류 관련 2점, 중소기업 1점. 총 7점으로 B등급.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "(주)네이처빌", "ceo": "송연화", "type": "중소기업", "industry": "도시락류 제조업", "employees": "4 명 (2025년 기준)", "founded": "2019년 1월 1일 (업력 8년차)", "revenue": "33억원 (2025년 기준)", "homepage": "www.naturevil.com", "address": "서울 강서구 공항대로 194, 605호 (마곡동,퀸즈파크12차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Rk9ua3lJVmRBWFZUeUlhdmxtSnQ0Zz09", "score": 6.0, "priority": "B", "reason": "사원수 4명으로 0점, 매출액 33억원으로 1.5점, 홈페이지 존재로 1점, 주소가 오피스(퀸즈파크12차)로 2점, 업종이 도시락 제조로 물류·데이터 업무와 간접 관련(0.5점), 중소기업으로 1점. 총 6점으로 B등급.", "lat": 37.5589809916906, "lng": 126.829034127455}, {"name": "(주)트리플크라운인터내셔날", "ceo": null, "type": "중소기업, 외부감사법인, 주식회사, 수출입 기업", "industry": null, "employees": null, "founded": null, "revenue": null, "homepage": "tciair.co.kr", "address": "서울 강서구 공항대로 248, 3층 307호 308호 309호 310호 311호 (마곡동,대방건설빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=cEFjZ1BId1lkSlFtUk9kMzEwK0xOQT09", "score": 6.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재, 주소는 일반 사무실(오피스)로 판단, 업종은 항공운송·포워딩·통관 등 국제물류 관련으로 2점, 기업형태는 중소기업으로 1점.", "lat": 37.5584038640061, "lng": 126.834893863585}, {"name": "꽃길코리아(유)", "ceo": "박준오", "type": "중소기업, 외국인 투자기업, 유한회사, 수출입 기업", "industry": "화장품 및 화장용품 도매업", "employees": "26 명 (2023년 기준)", "founded": "2018년 1월 8일 (업력 9년차)", "revenue": "146억 6,207만원 (2025년 기준)", "homepage": "http://www.ebinkorea.com", "address": "서울 강남구 테헤란로78길 16, 6층 (대치동,노벨빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bDNZWU80UEMySVNqNThXSEZtbkVZdz09", "score": 9.0, "priority": "A", "reason": "사원수 26명으로 10~50명 구간에 해당하여 2점, 매출액 146억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스 건물(노벨빌딩)으로 사무실로 판단되어 2점, 업종이 화장품 도매업으로 물류·데이터 업무와 간접 관련되어 1점, 중소기업으로 1점을 부여하여 총 9점으로 A등급입니다.", "lat": 37.5050615609923, "lng": 127.05533837197}, {"name": "(주)티엑스알로보틱스", "ceo": "엄인섭", "type": "코스닥, 중소기업, 외부감사법인, 주식회사, 수출입 기업", "industry": "컨베이어장치 제조업", "employees": "79 명 (2026년 기준)", "founded": "2017년 7월 11일 (업력 10년차)", "revenue": "566억 3,290만원 (2025년 기준)", "homepage": "https://www.txr.kr/ko/", "address": "경기 부천시 원미구 옥산로 216", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=NmwvUHhUYUVJTXBLQ29QdDRnOXRCdz09", "score": 7.0, "priority": "B", "reason": "사원수 79명은 51~100명 구간으로 1점, 매출액 566억 원은 50억~300억 구간으로 2점, 홈페이지 존재로 1점, 주소는 일반 사무실로 판단되어 2점, 업종은 컨베이어장치 제조업으로 물류·데이터 업무와 관련성이 낮아 0점, 기업형태는 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5130053479547, "lng": 126.780916813277}, {"name": "(주)코리아인", "ceo": "김성준", "type": "중소기업, 주식회사", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": null, "founded": "2008년 10월 2일 (업력 19년차)", "revenue": "90억 2,491만원 (2025년 기준)", "homepage": "www.korea-in.co.kr", "address": "서울 금천구 가산디지털1로 83, 205호 (가산동,파트너스타워1)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=cEVzU3JCMEhjUWhhY1FtRklSWTNpQT09", "score": 6.0, "priority": "B", "reason": "사원수 정보가 없어 0점, 매출액 90억 원으로 1.5점, 홈페이지 존재로 1점, 주소가 오피스 건물로 2점, 업종이 인력 공급 및 인사관리로 물류·데이터 업무와 간접 관련이 있어 0.5점, 중소기업으로 1점. 총 6점으로 B등급.", "lat": 37.4732207718169, "lng": 126.884298623646}, {"name": "(주)서정인터내셔날", "ceo": "장용서", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "17 명 (2026년 기준)", "founded": "2000년 9월 19일 (업력 27년차)", "revenue": "224억 9,733만원 (2025년 기준)", "homepage": "www.sj-intl.com", "address": "서울 강남구 논현로 414, 7층 (역삼동,세일빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=V3NQUjc1a21BV0dGN1ZDakJ6d05WUT09", "score": 10.0, "priority": "A", "reason": "사원수 17명으로 10~50명 구간에 해당하여 2점, 매출액 약 224.9억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스(세일빌딩 7층)로 사무실로 판단되어 2점, 업종이 화물운송 중개 및 관련 서비스업으로 국제물류·포워딩·통관 등 직접 관련되어 2점, 중소기업으로 1점을 부여하여 총점 10점으로 A등급입니다.", "lat": 37.4972385027886, "lng": 127.039064239457}, {"name": "(주)로지피아", "ceo": "김경환", "type": "중소기업, 주식회사, 수출입 기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "26 명 (2026년 기준)", "founded": "1998년 9월 11일 (업력 29년차)", "revenue": "290억 5,313만원 (2025년 기준)", "homepage": "www.logipia.co.kr", "address": "서울 강남구 논현로167길 16, 5층, 6층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=K2l4b0VKNGdzZ2dHSGlsTHRYQ0JKdz09", "score": 10.0, "priority": "A", "reason": "사원수 26명으로 10~50명 구간에 해당하여 2점, 매출액 약 290억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스 건물로 판단되어 2점, 국제물류·포워딩 업종으로 2점, 중소기업으로 1점을 부여하여 총점 10점입니다.", "lat": 37.524787675725, "lng": 127.026902059441}, {"name": "(주)메이튼", "ceo": "김남수", "type": "중소기업, 주식회사", "industry": "자동차 차체용 신품 부품 제조업", "employees": "40 명 (2026년 기준)", "founded": "2018년 9월 7일 (업력 9년차)", "revenue": "313억 9,477만원 (2025년 기준)", "homepage": "https://mayton.ninehire.site", "address": "인천 부평구 안남로 404, 4층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZFY3YzdnUFBQMzdMWHdHd052YmM5UT09", "score": 8.0, "priority": "A", "reason": "사원수 40명으로 10~50명 구간에 해당하여 2점, 매출액 약 313.9억 원으로 300억~1,000억 구간에 해당하여 1점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(4층)로 판단되어 2점, 업종은 자동차 부품 제조업으로 물류·자재 관리 관련 키워드가 있어 간접 관련으로 1점, 중소기업으로 1점. 총점 8점으로 A 등급.", "lat": 37.5190177199663, "lng": 126.71059140713}, {"name": "(주)아이씨이엘로지스틱스", "ceo": "신동민", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "14 명 (2024년 기준)", "founded": "2018년 6월 12일 (업력 9년차)", "revenue": "96억 135만원 (2024년 기준)", "homepage": "www.icellogistics.com", "address": "서울 마포구 양화로11길 42, 4층 (서교동,팍스타)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=TjBScmgvbzRvQ3lzNTRsZG5aTG9lQT09", "score": 9.5, "priority": "A", "reason": "사원수 14명으로 10~50명 구간에 해당하여 2점, 매출액 약 96억 원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재로 1점, 주소가 일반 오피스 건물(팍스타)로 사무실로 판단되어 2점, 업종이 화물운송 중개 및 관련 서비스로 국제물류·포워딩 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총 9.5점으로 A등급입니다.", "lat": 37.5523988391534, "lng": 126.914462088297}, {"name": "비투엘물류(주)", "ceo": "김창호, 박철문", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "61 명 (2022년 기준)", "founded": "2007년 1월 11일 (업력 20년차)", "revenue": "666억 9,340만원 (2022년 기준)", "homepage": "www.btllogis.com", "address": "서울 금천구 디지털로9길 47, 1304호 (가산동,한신아이티타워2차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=cjVnZlV1RFgzRSt2Q1duUWZmL2lXdz09", "score": 8.0, "priority": "A", "reason": "사원수 61명은 51~100명 구간으로 1점, 매출액 666억 원은 300억~1,000억 구간으로 1점, 공식 홈페이지 존재로 1점, 주소가 지식산업센터(한신아이티타워) 내 사무실로 판단되어 2점, 국제물류 관련 업종 및 키워드로 2점, 중소기업으로 1점을 부여하여 총 8점입니다.", "lat": 37.4795709245086, "lng": 126.88580065533}, {"name": "(주)대신운송서울지점", "ceo": "김종인", "type": "1000대기업, 주식회사", "industry": null, "employees": "10 명 (2026년 기준)", "founded": "1983년 3월 1일 (업력 44년차)", "revenue": null, "homepage": "http://www.dstc.co.kr/", "address": "경기 김포시 고촌읍 아라육로57번길 115 곤륜빌딩", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=REpWSVN6eTFVNEVVaENRUFU0SjByZz09", "score": 7.0, "priority": "B", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 홈페이지 존재하여 1점, 주소가 일반 빌딩(곤륜빌딩)으로 사무실로 판단되어 2점, 관련 키워드에 '국제물류'가 있어 2점, 기업형태가 1000대기업으로 대기업으로 판단되어 0점. 총점 7점으로 B등급.", "lat": 37.5918357826001, "lng": 126.796681464359}, {"name": "주식회사브릿지로지스틱스코리아", "ceo": "권혁장", "type": null, "industry": "운송·운수·물류", "employees": "4 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 양천로 424 가양역 데시앙플렉스 지식산업센터", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=YUpPTzU5ZHl5ZmdMK1VUTXBCaUZNUT09", "score": 4.0, "priority": "C", "reason": "사원수 4명으로 0점, 매출액 정보 없음으로 0점, 홈페이지 없음으로 0점, 주소는 지식산업센터로 사무실로 판단되어 2점, 업종이 국제물류(포워더, 항공/해상무역)로 2점, 기업형태 정보 없음으로 0점. 총점 4점으로 C등급.", "lat": 37.5642277147695, "lng": 126.847971033372}, {"name": "(주)이투마스", "ceo": "정상훈", "type": "중소기업, 외부감사법인, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "65 명 (2026년 기준)", "founded": "2017년 10월 26일 (업력 10년차)", "revenue": "1,118억 1,198만원 (2025년 기준)", "homepage": "https://www.etomars.com", "address": "서울 강서구 공항대로 212, 8층 830호, 831호, 832호 (마곡동,문영퀸즈파크11차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Yi9xVHhuRG90Y2E5QXdOSUJZdTlJdz09", "score": 7.0, "priority": "B", "reason": "사원수 65명은 51~100명 구간으로 1점, 매출액 약 1,118억 원은 1,000억 초과로 0.5점, 홈페이지 존재로 1점, 주소는 일반 오피스(문영퀸즈파크)로 2점, 업종은 화물운송 중개로 물류 관련성이 높아 1.5점, 기업형태는 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5588248070734, "lng": 126.831007635455}, {"name": "(주)딜리버드코리아", "ceo": "김종익", "type": "중소기업, 외국인 투자기업, 외부감사법인, 주식회사, 수출입 기업", "industry": "응용 소프트웨어 개발 및 공급업", "employees": "74 명 (2025년 기준)", "founded": "2013년 12월 17일 (업력 14년차)", "revenue": "265억 3,941만원 (2025년 기준)", "homepage": "https://www.delivered.co.kr/ko/", "address": "부산 해운대구 센텀중앙로 90, 2010호 (재송동,큐비이센텀)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OG5GZUx3cGpCaE1vdDd5SGduTHIxdz09", "score": 7.0, "priority": "B", "reason": "사원수 74명은 51~100명 구간으로 1점, 매출액 265억 원은 50~300억 구간으로 2점, 홈페이지 존재로 1점, 주소는 오피스(큐비이센텀)로 2점, 업종은 소프트웨어 개발로 물류 관련성이 낮아 0점, 기업형태는 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 35.1754430801399, "lng": 129.126430961339}, {"name": "이모트랜스코리아(주)", "ceo": "김태희", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "6 명 (2025년 기준)", "founded": "2004년 6월 25일 (업력 23년차)", "revenue": "38억 3,000만원 (2025년 기준)", "homepage": "http://emotrans-global.com/", "address": "서울 강서구 양천로 401, B동 12층 1208호 (가양동,강서한강자이타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bmVPK2h0bXFkcGVKZXRhcjR4REVZZz09", "score": 8.5, "priority": "A", "reason": "사원수 6명으로 5~9명 구간에 해당하여 1점, 매출액 38.3억원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재로 1점, 주소가 오피스(강서한강자이타워)로 사무실로 판단되어 2점, 업종이 화물운송 중개 및 포워더/통관 관련으로 2점, 중소기업으로 1점을 부여하여 총 8.5점으로 A등급.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "윤익스프레스코리아(주)", "ceo": "쒄이/치제", "type": "중소기업, 외국 법인기업, 주식회사", "industry": "화장품 및 화장용품 도매업", "employees": "12 명 (2026년 기준)", "founded": "2021년 12월 28일 (업력 6년차)", "revenue": "75억 5,089만원 (2025년 기준)", "homepage": "https://kr.yunexpress.com/", "address": "서울 강서구 마곡중앙로 143, 4층 409호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=N0N0ckVJMlBOeHhJOVlvV0lTNHcvZz09", "score": 8.5, "priority": "A", "reason": "사원수 12명으로 10~50명 구간에 해당하여 2점, 매출액 75억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스(마곡중앙로 143, 4층 409호)로 판단되어 2점, 업종이 화장품 도매업으로 물류·데이터 업무와 간접 관련되어 0.5점, 중소기업으로 1점을 부여함.", "lat": 37.5647750742195, "lng": 126.825252880539}, {"name": "(주)팜스빌", "ceo": "이병욱", "type": "코스닥, 중소기업, 주식회사, 외부감사법인, 병역특례 인증업체, 수출입 기업", "industry": "건강기능식품 제조업", "employees": "17 명 (2026년 기준)", "founded": "2000년 3월 15일 (업력 27년차)", "revenue": null, "homepage": "www.pharmsville.com", "address": "서울 강서구 마곡중앙8로3길 37", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Q2VPcWdCYXZnL0ZrOERlVDZvOXA3Zz09", "score": 6.5, "priority": "B", "reason": "사원수 17명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 홈페이지 존재하여 1점, 주소가 일반 사무실(마곡지구 오피스)로 판단되어 2점, 업종이 건강기능식품 제조업으로 물류·데이터 업무와 간접 관련이 있어 0.5점, 기업형태가 중소기업으로 1점. 총점 6.5점으로 B등급.", "lat": 37.5644290763667, "lng": 126.83689133093}, {"name": "(주)이로지스아시아", "ceo": "한창환/이제훈", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "27 명 (2026년 기준)", "founded": "2020년 3월 9일 (업력 7년차)", "revenue": "232억 4,130만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 양천로 400-12, 1101호 ,1102호, 1103호 (등촌동,더리브골드타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=MmxjUW9xNUFaQnlUWldYa1E3dkNyUT09", "score": 9.0, "priority": "A", "reason": "사원수 27명으로 10~50명 구간에 해당하여 2점, 매출액 232억 원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보가 없어 0점, 주소가 오피스 건물(더리브골드타워)로 사무실로 판단되어 2점, 업종이 화물운송 중개·대리로 국제물류·포워딩 관련성이 높아 2점, 기업형태가 중소기업으로 1점을 부여하여 총점 9점으로 A등급입니다.", "lat": 37.5653423364178, "lng": 126.84574846806}, {"name": "크레팜(주)", "ceo": "강선구", "type": "중소기업, 주식회사, 외부감사법인, 수출입 기업", "industry": "육류 기타 가공 및 저장처리업 (가금류 제외)", "employees": null, "founded": "2006년 1월 17일 (업력 21년차)", "revenue": "458억 1,299만원 (2025년 기준)", "homepage": "www.crefarm.co.kr", "address": "인천 검단구 소담2로 22 (금곡동,아이푸드파크산업단지)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZGZwbXZlVkZzTEx2ZzdQMlJBazBodz09", "score": 3.0, "priority": "C", "reason": "사원수 정보 없음(0점), 매출액 458억 원으로 300억~1000억 구간(1점)이나 1000억 초과가 아니므로 0.5점, 홈페이지 존재(1점), 주소가 산업단지 내로 물류·생산 중심 시설로 판단(0점), 업종은 육류 가공으로 제조업에 해당하여 물류·데이터 업무와 간접 관련(0.5점), 중소기업(1점)으로 총 3점.", "lat": 37.6091669604131, "lng": 126.633519624068}, {"name": "(주)비티엘글로벌로지스틱스", "ceo": null, "type": "중소기업", "industry": null, "employees": "15 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 강서로 395, H동 402호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=QmRsdVB2N2ZCL2tMWTEvc0hDdUlwZz09", "score": 7.0, "priority": "B", "reason": "사원수 15명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없음으로 0점, 홈페이지 없음으로 0점, 주소가 일반 오피스(강서로 H동 402호)로 판단되어 2점, 업종이 포워더로 국제물류 관련 2점, 기업형태가 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.561058561996, "lng": 126.838610552611}, {"name": "베럴쉬핑(주)", "ceo": "우혜지", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "6 명 (2026년 기준)", "founded": "2021년 12월 14일 (업력 6년차)", "revenue": null, "homepage": "http://www.btship.co.kr", "address": "서울 강서구 마곡중앙5로1길 20, 8층 826호 (마곡동,마곡나루역보타닉비즈타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=WGVnc0sxVzArRUZEK3MzbEpzRzJhQT09", "score": 7.0, "priority": "B", "reason": "사원수 6명으로 5~9명 구간에 해당하여 1점, 매출액 정보 없음으로 0점, 공식 홈페이지 존재로 1점, 주소가 오피스 건물(보타닉비즈타워)로 사무실 환경으로 판단되어 2점, 업종이 화물운송 중개 및 항공운송, 포워더 관련으로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 7점으로 B등급.", "lat": 37.5686664592954, "lng": 126.826712019131}, {"name": "(주)더아머베어러", "ceo": "박진수", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "10 명 (2024년 기준)", "founded": "2018년 5월 15일 (업력 9년차)", "revenue": "814억 8,025만원 (2024년 기준)", "homepage": "www.armor-bearer.com", "address": "서울 강서구 화곡로64길 67, 3층 301호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=a1FuWFlzbVBlK1NJREhpcHJBcmNQQT09", "score": 8.5, "priority": "A", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 814억 원으로 1,000억 원 초과는 아니지만 300억~1,000억 원 구간에 해당하여 1점이 아닌 0.5점을 부여했습니다. (매출액 814억 원은 300억~1,000억 원 구간이므로 1점이 맞으나, 평가 기준에 따라 1,000억 초과가 0.5점이므로 814억은 1점이어야 합니다. 그러나 지침에 따라 300억~1,000억 원은 1점이므로 1점을 부여해야 합니다. 하지만 총점 계산 시 0.5점으로 잘못 기재했습니다. 정정합니다: revenue_score는 1점이 맞습니다. 따라서 total_score는 9점이 됩니다. 그러나 출력 규칙에 따라 total_score는 각 점수의 합과 일치해야 하므로, revenue_score를 1로 수정하고 total_score를 9로 수정합니다. 최종 JSON을 다시 생성합니다.", "lat": 37.5562606163228, "lng": 126.856877303236}, {"name": "주식회사아베호", "ceo": "김성진", "type": "중소기업, 주식회사", "industry": "운송·운수·물류", "employees": null, "founded": "2026년 7월 1일 (업력 1년차)", "revenue": null, "homepage": "www.aveho.co.kr", "address": "서울 강서구 양천로 532, 더리브아너비즈타워 1001호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=SDg2ZXc1RE1DMkxBZXdFTXcwNm9vUT09", "score": 6.0, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재, 주소는 오피스 타워로 사무실로 판단, 업종이 국제물류(포워더)로 적합, 중소기업으로 1점.", "lat": 37.5588549952776, "lng": 126.858262624754}, {"name": "시원합동관세사무소", "ceo": "송영현", "type": null, "industry": "유통·무역·상사", "employees": null, "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 마곡중앙6로 70 매그넘797", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=RlZLWlFsZ3ZSWHUwVkxSS0JnWmgxZz09", "score": 4.0, "priority": "C", "reason": "사원수, 매출액, 홈페이지, 기업형태 정보가 없어 0점 처리. 주소는 일반 사무실 건물로 보여 2점. 업종이 유통·무역·상사이고 관련 키워드가 무역사무원으로 국제물류·통관 관련성이 높아 2점. 총점 4점으로 C등급.", "lat": 37.5598562142859, "lng": 126.834854214935}, {"name": "(주)에프앤비네트웍스", "ceo": "박명희", "type": "중소기업", "industry": "사업시설 유지ㆍ관리 서비스업", "employees": "300 명 (2016년 기준)", "founded": "2006년 8월 8일 (업력 21년차)", "revenue": "74억 8,904만원 (2016년 기준)", "homepage": "www.fnbnetworks.co.kr", "address": "경기 수원시 권선구 효원로266번길 11, 902호 (권선동,스페이스앤이룸타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OGFVbFBPSEFHQUtEYTdpUjBEM3VBQT09", "score": 6.0, "priority": "B", "reason": "사원수 300명으로 201명 이상이므로 0점, 매출액 74.89억원으로 50억~300억 구간이므로 2점, 홈페이지 존재로 1점, 주소가 오피스(스페이스앤이룸타워 902호)로 사무실로 판단되어 2점, 업종이 사업시설 유지관리 서비스업으로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태가 중소기업으로 1점. 총점 6점으로 B등급.", "lat": 37.2611966969905, "lng": 127.030668855644}, {"name": "선일티앤티(주)", "ceo": "장영길", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2003년 3월 25일 (업력 24년차)", "revenue": null, "homepage": "www.sunilline.com", "address": "서울 중구 세종대로 72, 201호 (태평로2가,대영빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=aVlMZkoxS1d5RVNSdFNzWUtkaEZldz09", "score": 5.5, "priority": "B", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재(1점), 주소는 일반 사무실(2점), 업종은 화물운송 중개로 물류 관련성이 높음(1.5점), 중소기업(1점). 총점 5.5점으로 B등급.", "lat": 37.562496007961, "lng": 126.976799879203}, {"name": "(주)백그라운드", "ceo": "백봉석", "type": "중소기업, 주식회사", "industry": "경영 컨설팅업", "employees": "40 명 (2025년 기준)", "founded": "2022년 10월 12일 (업력 5년차)", "revenue": "8억원 (2025년 기준)", "homepage": "https://www.baekground.co.kr", "address": "경기 안양시 만안구 전파로44번길 57, 2층 213호 (안양동,두산명학아너비즈타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VjFQNTZTNVY0bndJc1E5TmVvcTcyQT09", "score": 8.0, "priority": "A", "reason": "사원수 40명으로 10~50명 구간에 해당하여 2점, 매출액 8억원으로 10억 미만이라 0점, 공식 홈페이지 존재로 1점, 주소가 지식산업센터 내 사무실로 판단되어 2점, 업종이 경영컨설팅이나 관련 키워드가 국제물류·포워더 등으로 직접 관련되어 2점, 중소기업으로 1점을 부여하여 총 8점으로 A등급.", "lat": 37.3879456294227, "lng": 126.938569233045}, {"name": "선림코퍼레이션", "ceo": "김정경", "type": null, "industry": "시설관리·경비·용역", "employees": null, "founded": "2021년 12월 6일 (업력 6년차)", "revenue": null, "homepage": "sunrimcorp.com", "address": "서울 영등포구 선유로 27 대륭오피스텔", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=UU1UaUNweDVQbzNVMHd6bURuZ0E2QT09", "score": 4.0, "priority": "C", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재로 1점. 주소는 오피스텔로 사무실로 판단되어 2점. 업종은 시설관리·경비·용역이나 관련 키워드에 물류, 자재, 재고 관리가 포함되어 간접적 관련성으로 1점. 기업형태 정보 없음으로 0점.", "lat": 37.5166326206565, "lng": 126.887951634967}, {"name": "씽크제이", "ceo": "심수정", "type": "중소기업", "industry": null, "employees": "10 명 (2022년 기준)", "founded": null, "revenue": null, "homepage": "www.think-j.com", "address": "서울 마포구 월드컵로 196 대명비첸시티오피스텔 B105호 A-69", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=SWRpVUloeTdTMUQ4dU13UXhiT1FpQT09", "score": 7.0, "priority": "B", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 홈페이지 존재하여 1점, 주소는 오피스텔로 사무실 여부가 명확하지 않아 1점, 업종은 포워더 및 무역 관련 키워드로 2점, 기업형태는 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5647995635391, "lng": 126.902750212857}, {"name": "(주)아데코코리아", "ceo": "첸유펜", "type": "중견기업, 외국인 투자기업, 외부감사법인, 주식회사", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": "2,348 명 (2026년 기준)", "founded": "1999년 5월 6일 (업력 28년차)", "revenue": "1,162억 8,440만원 (2025년 기준)", "homepage": "www.adecco.co.kr", "address": "서울 강남구 테헤란로 501, 6층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=S0hPQnFNWTdWS1Q4WjMxaFBDOFJJdz09", "score": 4.0, "priority": "C", "reason": "사원수 2,348명으로 201명 이상이므로 0점, 매출액 약 1,162억 원으로 1,000억 초과이므로 0.5점, 홈페이지 존재 1점, 주소는 일반 오피스 건물로 2점, 업종은 인력공급 및 인사관리로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태는 중견기업이므로 0.5점. 총점 4점으로 C등급.", "lat": 37.5073809450356, "lng": 127.056821251348}, {"name": "(주)대신국제물류", "ceo": "김동현", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "11 명 (2026년 기준)", "founded": "2023년 5월 15일 (업력 4년차)", "revenue": "43억 8,142만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 방화대로6다길 6-10, 1층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=UWhock5MYVFhaVEwaUJ0VDJnVGNqdz09", "score": 7.0, "priority": "B", "reason": "사원수 11명으로 10~50명 구간에 해당하여 2점, 매출액 약 43.8억 원으로 10~50억 구간에 해당하여 1.5점, 홈페이지 정보 없음으로 0점, 주소는 일반 건물 1층으로 사무실 여부가 명확하지 않아 1점, 업종이 화물운송 중개로 물류 관련성이 높아 1.5점, 기업형태가 중소기업으로 1점을 부여함.", "lat": 37.5556377301297, "lng": 126.817170543868}, {"name": "(주)다산글로벌", "ceo": "이영문", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "10 명 (2026년 기준)", "founded": "2015년 4월 27일 (업력 12년차)", "revenue": "208억 2,721만원 (2024년 기준)", "homepage": null, "address": "서울 강서구 공항대로 242, 506호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=N3MxK2l5YVQzSnJQY0x4OVR6YnphZz09", "score": 8.5, "priority": "A", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 208억 원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보 없음으로 0점, 주소가 오피스(506호)로 사무실로 판단되어 2점, 업종이 화물운송 중개로 물류 관련성이 높아 1.5점, 기업형태가 중소기업으로 1점을 부여하여 총점 8.5점으로 A등급입니다.", "lat": 37.5584801960397, "lng": 126.834327579685}, {"name": "동호에이치알(주)", "ceo": "장원준", "type": "중소기업, 주식회사", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": "800 명 (2016년 기준)", "founded": "2010년 3월 25일 (업력 17년차)", "revenue": "176억 9,279만원 (2016년 기준)", "homepage": null, "address": "서울 강남구 논현로132길 6, 402호 (논현동,미래빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=RlFVWGI4R01kWGxtUitoUkV0QlQrZz09", "score": 5.0, "priority": "B", "reason": "사원수 800명으로 201명 이상이므로 0점, 매출액 약 176.9억 원으로 50억~300억 구간이므로 2점, 홈페이지 정보 없음으로 0점, 주소는 미래빌딩 402호로 일반 사무실로 판단되어 2점, 업종은 인력공급 및 인사관리로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태는 중소기업으로 1점. 총점 5점으로 B등급.", "lat": 37.5146258904907, "lng": 127.030957311085}, {"name": "아산맨파워(주)", "ceo": "안상준", "type": "중소기업", "industry": "고용 알선업", "employees": "181 명 (2026년 기준)", "founded": "1999년 3월 5일 (업력 28년차)", "revenue": "104억 3,442만원 (2024년 기준)", "homepage": "www.asanmanpower.com", "address": "서울 동작구 남부순환로 2029, 2층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=REQ5aXM1aTkya3lFM1dBc21NT1Fvdz09", "score": 5.5, "priority": "B", "reason": "사원수 181명은 101~200명 구간으로 0.5점, 매출액 104억 원은 50억~300억 구간이지만 300억 미만이므로 1점, 홈페이지 존재로 1점, 주소는 일반 건물 2층으로 사무실로 판단되어 2점, 업종은 고용 알선업으로 물류·데이터 자동화와 직접 관련 없어 0점, 중소기업으로 1점. 총점 5.5점으로 B등급.", "lat": 37.4764902061299, "lng": 126.974156830811}, {"name": "(주)맨파워써치앤컨설팅", "ceo": "진연지", "type": null, "industry": "시설관리·경비·용역", "employees": "42 명 (2026년 기준)", "founded": "2025년 7월 1일 (업력 2년차)", "revenue": null, "homepage": "www.manpower.co.kr", "address": "서울 강남구 테헤란로 409 동신빌딩", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=d3YvdklSdEh2eUdFMks4Z3l3aTVtZz09", "score": 8.0, "priority": "A", "reason": "사원수 42명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 공식 홈페이지 존재하여 1점, 주소가 서울 강남구 테헤란로의 일반 사무실 건물로 판단되어 2점, 관련 키워드에 포워더, 항공무역, 해상무역이 있어 국제물류 관련 업종으로 2점, 기업형태 정보 없으나 주식회사로 추정되어 1점 부여.", "lat": 37.5053601174069, "lng": 127.050386949115}, {"name": "(주)코르딕스", "ceo": "이민혁", "type": "중소기업, 주식회사", "industry": "데이터베이스 및 온라인정보 제공업", "employees": "23 명 (2026년 기준)", "founded": "2024년 3월 7일 (업력 3년차)", "revenue": "173억 2,554만원 (2025년 기준)", "homepage": "www.cordix.kr", "address": "서울 강서구 공항대로 194, 12층 1206호 (마곡동,문영퀸즈파크12차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ODJMQzQ2d1hlcHNsdnF0VG0zY3Jndz09", "score": 9.0, "priority": "A", "reason": "사원수 23명으로 10~50명 구간에 해당하여 2점, 매출액 약 173억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 일반 오피스(문영퀸즈파크)로 사무실로 판단되어 2점, 업종은 데이터베이스 및 온라인정보 제공업으로 물류·무역과 간접 관련(무역사무원, 수/발주 등)하여 1점, 중소기업으로 1점. 총점 9점으로 A등급.", "lat": 37.5589809916906, "lng": 126.829034127455}, {"name": "(주)빅에이스", "ceo": "노경근", "type": "중소기업, 주식회사, 수출입 기업", "industry": "가전제품 및 부품 도매업", "employees": "15 명 (2026년 기준)", "founded": "2017년 3월 27일 (업력 10년차)", "revenue": null, "homepage": "https://bigace.co.kr", "address": "서울 강서구 양천로47길 40, 1109호 (마곡동,놀라움마곡지식산업센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=VXhMdkdnK0hBOVJudFpZWVI5c01lQT09", "score": 7.0, "priority": "B", "reason": "사원수 15명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없음으로 0점, 공식 홈페이지 존재로 1점, 지식산업센터 내 사무실로 2점, 업종이 가전제품 도매업으로 무역 관련 키워드가 있어 간접 관련으로 1점, 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5722286368016, "lng": 126.837813757861}, {"name": "(주)지이스트", "ceo": "박문수", "type": "중소기업, 외부감사법인, 주식회사, 수출입 기업", "industry": "기타 가공식품 도매업", "employees": null, "founded": "2008년 3월 5일 (업력 19년차)", "revenue": "1,050억 2,920만원 (2024년 기준)", "homepage": "http://www.geast.co.kr", "address": "서울 강서구 공항대로 247, A동 13층 1301호 (마곡동,퀸즈파크나인)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=UVBjSVZvRnZEcVJnZHFzZWVuZldpQT09", "score": 5.5, "priority": "B", "reason": "사원수 정보 없음(0점), 매출액 1,050억 원으로 1,000억 초과(0.5점), 공식 홈페이지 존재(1점), 주소는 오피스 건물(2점), 업종은 기타 가공식품 도매업으로 무역·수출입 관련 키워드가 있어 간접 관련(1점), 중소기업(1점). 총점 5.5점으로 B등급.", "lat": 37.5593135416408, "lng": 126.83523920295}, {"name": "관세법인삼원", "ceo": "박민재/조용석", "type": "중소기업", "industry": "통관 대리 및 관련서비스업", "employees": "45 명 (2026년 기준)", "founded": "2014년 11월 12일 (업력 13년차)", "revenue": "34억 7,066만원 (2024년 기준)", "homepage": null, "address": "서울 강서구 마곡중앙로 56, 지상9층 913호,914호,915호,916호,917호 (마곡동,마곡사이언스타워2)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Rll3ZGwxcU9ZWnVqMTJ3Q3BLYmkwdz09", "score": 8.5, "priority": "A", "reason": "사원수 45명으로 10~50명 구간에 해당하여 2점, 매출액 약 34.7억 원으로 10~50억 구간에 해당하여 1.5점, 홈페이지 정보가 없어 0점, 주소가 지식산업센터(마곡사이언스타워) 내 사무실로 판단되어 2점, 업종이 통관 대리 및 관련 서비스업으로 국제물류·통관 관련성이 높아 2점, 기업형태가 중소기업으로 1점을 부여함. 총점 8.5점으로 A 등급.", "lat": 37.5585523530405, "lng": 126.827153750211}, {"name": "관세법인샤인", "ceo": null, "type": "중소기업, 유한회사", "industry": null, "employees": "25 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 양천로 401, A동 513호,514호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Sml0Uk0zdnJLMFhqbEpoa2NBa1Q1Zz09", "score": 7.0, "priority": "B", "reason": "사원수 25명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 홈페이지 정보 없어 0점, 주소가 오피스(양천로 A동)로 사무실로 판단되어 2점, 업종이 관세·통관 관련으로 2점, 기업형태가 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.5657034766638, "lng": 126.847638315393}, {"name": "(주)삼원로직스", "ceo": "강대일", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "6 명 (2026년 기준)", "founded": "2016년 6월 15일 (업력 11년차)", "revenue": null, "homepage": null, "address": "서울 강서구 마곡중앙6로 66, 8층 820호 (마곡동,퀸즈파크텐)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=c1dxVldZYVEzVVhhQ0h6YXM2M0dsdz09", "score": 6.0, "priority": "B", "reason": "사원수 6명으로 5~9명 구간에 해당하여 1점, 매출액 정보 없음으로 0점, 홈페이지 없음으로 0점, 주소가 오피스 건물(퀸즈파크텐)으로 사무실로 판단되어 2점, 업종이 화물운송 중개·통관·해상운송으로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총 6점으로 B등급.", "lat": 37.559915259194, "lng": 126.8343608462}, {"name": "에이블씨앤에어(주)", "ceo": "이정민", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "3 명 (2025년 기준)", "founded": "2012년 9월 7일 (업력 15년차)", "revenue": "13억 6,530만원 (2025년 기준)", "homepage": "http://", "address": "서울 강서구 화곡로 416, 512호 (등촌동,더스카이밸리5차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=MVNLM0NPT2lTczhrR2llWkZuOEJsZz09", "score": 6.5, "priority": "B", "reason": "사원수 3명으로 0점, 매출액 13.65억원으로 1.5점, 홈페이지 URL이 불완전하여 0점, 주소가 오피스텔(더스카이밸리5차)로 사무실로 판단되어 2점, 업종이 화물운송 중개 및 통관 관련으로 2점, 중소기업으로 1점. 총 6.5점으로 B등급.", "lat": 37.5600240146894, "lng": 126.855419700734}, {"name": "이오스관세법인", "ceo": "설동정", "type": "사단법인, 주식회사", "industry": "유통·무역·상사", "employees": "10 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 공항대로 190 푸리마타워 1312,1313호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=MGxRT2Y3TnliSUNjRWdJbVVIdURlUT09", "score": 7.0, "priority": "B", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 홈페이지 없어 0점, 주소가 일반 오피스(푸리마타워)로 사무실로 판단되어 2점, 업종이 관세·통관 관련으로 2점, 기업형태가 사단법인/주식회사로 중소기업으로 판단되어 1점. 총점 7점으로 B등급.", "lat": 37.5590423146669, "lng": 126.828637182941}, {"name": "서울다이나믹스(주)", "ceo": "이거송", "type": "중소기업, 주식회사", "industry": "화물자동차 및 특수목적용 자동차 제조업", "employees": "14 명 (2026년 기준)", "founded": "2022년 7월 15일 (업력 5년차)", "revenue": "8억 3,430만원 (2025년 기준)", "homepage": "www.seouldynamics.com", "address": "경기 성남시 수정구 달래내로 46, A동 407호 (시흥동,성남글로벌융합센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=RVpPUFMxUzVsU1NNK1YvVU5YS2Radz09", "score": 6.0, "priority": "B", "reason": "사원수 14명으로 10~50명 구간에 해당하여 2점, 매출액 8억 원으로 10억 미만이라 0점, 홈페이지 존재로 1점, 주소가 성남글로벌융합센터 내 사무실로 판단되어 2점, 업종이 화물차 제조업으로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태가 중소기업·주식회사로 1점을 부여하여 총점 6점으로 B등급입니다.", "lat": 37.4090288075802, "lng": 127.094840411837}, {"name": "(주)쇼카고로지스틱스", "ceo": "서광석/이천명", "type": "중소기업, 주식회사", "industry": "항공 및 육상 화물 취급업", "employees": "10 명 (2026년 기준)", "founded": "2010년 11월 23일 (업력 17년차)", "revenue": null, "homepage": "www.showcargo.com", "address": "서울 강서구 마곡중앙2로 15, 412호,413호,414호,415호 (마곡동,마곡테크노타워2)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=djA1UGljbkxUSHFtRkYvbFlQQmxXUT09", "score": 8.0, "priority": "A", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 정보 없어 0점, 공식 홈페이지 존재하여 1점, 주소가 마곡테크노타워2의 사무실로 판단되어 2점, 항공 및 육상 화물 취급업으로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총 8점으로 A등급.", "lat": 37.5581624385834, "lng": 126.828538356954}, {"name": "(주)센토인터내셔날", "ceo": "김정동", "type": "중소기업, 주식회사, 수출입 기업", "industry": "그 외 기타 특정 상품 중개업", "employees": "8 명 (2025년 기준)", "founded": "2000년 9월 4일 (업력 27년차)", "revenue": "53억원 (2025년 기준)", "homepage": "www.centaur.co.kr", "address": "서울 강서구 양천로 400-12, 509호 (등촌동,더리브골드타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=bW1JcWtFaEl4RUhueUJ0SEUxWDhOUT09", "score": 9.0, "priority": "A", "reason": "사원수 8명으로 5~9명 구간에 해당하여 1점, 매출액 53억원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 오피스 건물(더리브골드타워) 내 사무실로 판단되어 2점, 업종이 통관·관세사·포워더 관련으로 국제물류와 직접 관련되어 2점, 중소기업으로 1점을 부여하여 총 9점으로 A등급.", "lat": 37.5653423364178, "lng": 126.84574846806}, {"name": "주식회사 더우 글로벌로지스", "ceo": "김용산", "type": null, "industry": "유통·무역·상사", "employees": null, "founded": null, "revenue": null, "homepage": null, "address": "인천 중구 영종대로162번길 20", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=eEI1T2JKUnJOSTVYNjNQTWFzcnhKZz09", "score": 4.0, "priority": "C", "reason": "사원수, 매출액, 홈페이지, 기업형태 정보가 없어 0점 처리. 주소는 일반 사무실로 보이며, 업종이 유통·무역·상사이고 관련 키워드가 수출입, 통관, 선적으로 국제물류 관련성이 높아 2점 부여.", "lat": 37.492430467007, "lng": 126.495394276732}, {"name": "(주)해여름", "ceo": "한규모", "type": "중소기업, 주식회사, 수출입 기업", "industry": "가공 및 정제염 제조업", "employees": "4 명 (2026년 기준)", "founded": "2009년 5월 21일 (업력 18년차)", "revenue": "6억 6,154만원 (2025년 기준)", "homepage": "http://www.hyrsalt.com", "address": "광주 신안군 도초면 서남문로 1520", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Y0VwNW1wRnNQUTNsWmx1d053NkVCQT09", "score": 2.5, "priority": "C", "reason": "사원수 4명으로 0점, 매출액 6.6억으로 0점, 홈페이지 존재로 1점, 주소가 도초면 서남문로로 사무실 여부 불명확하여 0점, 업종이 가공 및 정제염 제조업으로 물류·데이터 업무와 간접 관련이 있어 0.5점, 중소기업으로 1점. 총 2.5점으로 C등급.", "lat": 34.702045404057, "lng": 125.954234877478}, {"name": "제이디항공해운(주)", "ceo": "김태우/서은경", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "14 명 (2026년 기준)", "founded": "2013년 10월 16일 (업력 14년차)", "revenue": "115억 8,467만원 (2025년 기준)", "homepage": "http://www.jdlvk.com/", "address": "서울 강서구 공항대로 168, 제10층 제1005호,제1006호 (747)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=NEFIYktJMnRNR1lJV2FNNjQxQm1QQT09", "score": 10.0, "priority": "A", "reason": "사원수 14명(10~50명)으로 2점, 매출액 약 115.8억 원(50~300억)으로 2점, 공식 홈페이지 존재로 1점, 주소가 일반 오피스(공항대로 소재)로 2점, 업종이 화물운송 중개·대리로 국제물류 관련성이 높아 2점, 중소기업으로 1점을 부여하여 총점 10점입니다.", "lat": 37.5592736391913, "lng": 126.826136981493}, {"name": "주식회사게카세이코리아", "ceo": "문현우", "type": null, "industry": "유통·무역·상사", "employees": null, "founded": null, "revenue": null, "homepage": null, "address": "서울 강서구 양천로47길 40", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=M2JRdWxhK0tqYUpMUG1sVHU1Sm91UT09", "score": 4.0, "priority": "C", "reason": "사원수, 매출액, 홈페이지 정보가 없어 0점 처리. 주소는 서울 강서구 양천로47길 40으로 일반 사무실로 판단되어 2점. 업종은 유통·무역·상사로 물류·데이터 업무와 간접 관련되어 1점. 기업형태는 주식회사로 중소기업으로 추정되어 1점. 총점 4점으로 C등급.", "lat": 37.5722286368016, "lng": 126.837813757861}, {"name": "(주)로보티즈", "ceo": "김병수", "type": "코스닥, 중소기업, 외부감사법인, 주식회사, 병역특례 인증업체, 수출입 기업", "industry": "그 외 기타 특수목적용 기계 제조업", "employees": "171 명 (2026년 기준)", "founded": "1999년 3월 25일 (업력 28년차)", "revenue": null, "homepage": "www.robotis.com", "address": "서울 강서구 마곡중앙5로1길 37", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=U1RmUDhEQ2tTb0dGZXNOSnB5clp4dz09", "score": 4.5, "priority": "C", "reason": "사원수 171명은 101~200명 구간으로 0.5점, 매출액 정보 없음으로 0점, 홈페이지 존재로 1점, 주소는 일반 사무실로 판단되어 2점, 업종은 특수목적용 기계 제조업으로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태는 중소기업으로 1점. 총점 4.5점으로 C등급.", "lat": 37.570153465975, "lng": 126.826286581332}, {"name": "(주)이지테크론", "ceo": "하명헌", "type": "중소기업, 수출입 기업", "industry": "자동차용 전용 신품 부품 판매업", "employees": "25 명 (2026년 기준)", "founded": "2004년 12월 10일 (업력 23년차)", "revenue": "412억 8,728만원 (2025년 기준)", "homepage": "www.eztechron.com", "address": "서울 강서구 양천로 583, A동 405호 (염창동,우림블루나인)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZTdDcDZZOGY3NTM5UmhqTHJqOFo2Zz09", "score": 8.0, "priority": "A", "reason": "사원수 25명으로 10~50명 구간에 해당하여 2점, 매출액 약 412.9억 원으로 300억~1,000억 구간에 해당하여 1점, 공식 홈페이지 존재로 1점, 주소가 일반 오피스(우림블루나인 A동 405호)로 판단되어 2점, 업종이 자동차 부품 판매업으로 물류·무역과 간접 관련되어 1점, 중소기업으로 1점을 부여하여 총점 8점으로 A등급.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "(주)인투잇플러스", "ceo": "이기봉", "type": "중소기업, 주식회사, 수출입 기업", "industry": "상품 종합 도매업", "employees": "10 명 (2023년 기준)", "founded": "2004년 8월 12일 (업력 23년차)", "revenue": "165억원 (2023년 기준)", "homepage": null, "address": "서울 강서구 양천로 551-17, 1002호 (가양동,한화비즈메트로1차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=RnlSWkZTSE1sZFozWHlIalVWci9RQT09", "score": 8.0, "priority": "A", "reason": "사원수 10명으로 10~50명 구간에 해당하여 2점, 매출액 165억원으로 50억~300억 구간에 해당하여 2점, 홈페이지 정보가 없어 0점, 주소가 한화비즈메트로(지식산업센터) 내 사무실로 판단되어 2점, 업종이 상품 종합 도매업으로 물류·데이터 업무와 간접 관련되어 1점, 중소기업으로 1점을 부여하여 총점 8점으로 A등급입니다.", "lat": 37.5591095584309, "lng": 126.860941198154}, {"name": "(주)예일해운항공", "ceo": "김만수", "type": "중소기업, 사단법인, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "57 명 (2021년 기준)", "founded": "2010년 2월 1일 (업력 17년차)", "revenue": "704억 9,943만원 (2021년 기준)", "homepage": "www.yales.co.kr", "address": "서울 강서구 양천로 583, A동 1308호, 1309호 (염창동,우림블루나인비즈니스센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ZC9RM0gwbWNhWDZuSnRyTTFZWjBnUT09", "score": 8.0, "priority": "A", "reason": "사원수 57명은 51~100명 구간으로 1점, 매출액 약 705억 원은 300억~1,000억 구간으로 1점, 공식 홈페이지 존재로 1점, 주소가 비즈니스센터 내 사무실로 판단되어 2점, 업종이 화물운송 중개 및 항공운송 관련으로 2점, 중소기업으로 1점을 부여하여 총 8점입니다.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "(주)크레인월드와이드로지스틱스코리아", "ceo": "제러드제임스크레인", "type": "중소기업", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": null, "founded": "2008년 11월 21일 (업력 19년차)", "revenue": "193억 6,836만원 (2014년 기준)", "homepage": "www.craneww.com", "address": "서울 강서구 양천로 583, 1701호, 1702호 (염창동,우림블루나인비즈니스센터)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Z0FTejF0SDZ0SlRPTENaeHFtQUhDUT09", "score": 8.0, "priority": "A", "reason": "사원수 정보가 없어 0점, 매출액 193억으로 2점, 홈페이지 존재 1점, 주소가 비즈니스센터 내 사무실로 2점, 업종이 화물운송 중개로 물류 관련 2점, 중소기업 1점으로 총 8점.", "lat": 37.5571161918617, "lng": 126.864347419732}, {"name": "(주)나인원코스메디", "ceo": "김원주", "type": "중소기업", "industry": "화장품 제조업", "employees": null, "founded": "2019년 10월 16일 (업력 8년차)", "revenue": null, "homepage": "www.91cosmedi.com/diam/web/", "address": "광주 북구 삼소로270번길 25, 광주화장품생산시설", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=S3kwRmlxbEFaUGZiaWRjK0JvcldBUT09", "score": 2.5, "priority": "C", "reason": "사원수와 매출액 정보가 없어 0점 처리. 홈페이지 존재로 1점. 주소가 '광주화장품생산시설'로 생산 시설로 판단되어 0점. 업종이 화장품 제조업으로 물류·데이터 업무와 간접 관련이 있어 0.5점. 기업형태가 중소기업으로 1점.", "lat": 35.2385715259579, "lng": 126.865396719419}, {"name": "(주)포유디지탈", "ceo": "최우식", "type": "중소기업, 주식회사, 병역특례 인증업체", "industry": "컴퓨터 제조업", "employees": "68 명 (2023년 기준)", "founded": "2005년 10월 31일 (업력 22년차)", "revenue": "670억 4,645만원 (2023년 기준)", "homepage": "www.imuz.com", "address": "경기 고양시 일산동구 동국로 81-11", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Vng2S0YyYjhhcXpGVjB6a0RydzdqZz09", "score": 7.0, "priority": "B", "reason": "사원수 68명은 51~100명 구간으로 1점, 매출액 670억 원은 300억~1000억 구간으로 1점, 홈페이지 존재로 1점, 주소는 일반 사무실로 판단되어 2점, 업종은 컴퓨터 제조업이지만 관련 키워드에 무역·수출입이 있어 간접 관련으로 1점, 기업형태는 중소기업으로 1점. 총점 7점으로 B등급.", "lat": 37.6796249773813, "lng": 126.802207231128}, {"name": "(주)퀴버메딕", "ceo": "우이후아", "type": "중소기업, 수출입 기업", "industry": "의료기기 도매업", "employees": "15 명 (2026년 기준)", "founded": "2020년 10월 28일 (업력 7년차)", "revenue": "244억 2,359만원 (2025년 기준)", "homepage": "https://www.quivermedic.com/", "address": "서울 영등포구 국제금융로 70, 1505호 (여의도동,미원빌딩)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=UnZkUXkwbzJjanhqdGRsaExWcEtBdz09", "score": 9.0, "priority": "A", "reason": "사원수 15명으로 10~50명 구간에 해당하여 2점, 매출액 244억 원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 오피스 건물(미원빌딩) 내 사무실로 판단되어 2점, 업종이 의료기기 도매업으로 무역·거래 관련성이 있어 1점, 중소기업으로 1점을 부여하여 총 9점으로 A등급.", "lat": 37.5214946207638, "lng": 126.930677790628}, {"name": "정우관세사무소", "ceo": "이회승", "type": "중소기업", "industry": "통관 대리 및 관련서비스업", "employees": null, "founded": null, "revenue": "6억 4,995만원 (2025년 기준)", "homepage": null, "address": "서울 강서구 공항대로 186, 13층 1312호 (마곡동,로뎀타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=OGNHeEdwc3VtN25hQ0NvSWZuWTZGUT09", "score": 5.0, "priority": "B", "reason": "사원수 정보 없음(0점), 매출액 6억 4,995만원으로 10억 미만(0점), 홈페이지 없음(0점), 주소는 로뎀타워 13층 사무실로 일반 오피스(2점), 업종이 통관 대리로 국제물류·통관 관련(2점), 중소기업(1점)으로 총 5점.", "lat": 37.5590996762805, "lng": 126.827995667592}, {"name": "(주)디투씨랩", "ceo": "양우식", "type": "중소기업", "industry": "광고 대행업", "employees": "4 명 (2026년 기준)", "founded": "2024년 7월 15일 (업력 3년차)", "revenue": "2억 3,794만원 (2025년 기준)", "homepage": null, "address": "경기 고양시 덕양구 꽃마을로 34, 205호 (향동동,디엠씨스타팰리스동)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=L3BjRGd2bks4Z2tRbHlTa1Y1ejhGdz09", "score": 2.0, "priority": "C", "reason": "사원수 4명으로 0점, 매출액 2.4억으로 0점, 홈페이지 정보 없음으로 0점, 주소는 상업용 건물 내 사무실로 보이나 명확하지 않아 1점, 업종은 광고 대행업으로 물류·데이터 자동화와 관련 낮아 0점, 기업형태는 중소기업으로 1점. 총점 2점으로 C등급.", "lat": 37.6001615257344, "lng": 126.891247384316}, {"name": "(주)셀디랩", "ceo": "김영우/문은주", "type": "중소기업, 연구소, 주식회사", "industry": "침구 및 관련제품 제조업", "employees": "20 명 (2023년 기준)", "founded": "2020년 2월 11일 (업력 7년차)", "revenue": "160억원 (2023년 기준)", "homepage": "selfdiylab.com", "address": "서울 강서구 마곡중앙6로 21, 315호, 316호, 222호 (마곡동,이너매스 마곡1차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=K1krM0JLOEhvWGU1SjNuSENWUm1SZz09", "score": 8.5, "priority": "A", "reason": "사원수 20명으로 10~50명 구간에 해당하여 2점, 매출액 160억원으로 50억~300억 구간에 해당하여 2점, 공식 홈페이지 존재하여 1점, 주소가 지식산업센터 내 사무실로 판단되어 2점, 업종이 제조업으로 물류·데이터 업무와 간접 관련되어 0.5점, 중소기업으로 1점을 부여하여 총점 8.5점으로 A등급.", "lat": 37.560835635621, "lng": 126.829618546018}, {"name": "(주)인터블루에어엔씨", "ceo": "김병림", "type": "중소기업, 주식회사", "industry": "화물운송 중개, 대리 및 관련 서비스업", "employees": "5 명 (2026년 기준)", "founded": "2003년 11월 14일 (업력 24년차)", "revenue": "52억 6,045만원 (2025년 기준)", "homepage": "www.inter-airsea.co.kr", "address": "서울 강서구 양천로 551-24, 303호 (가양동,한화비즈메트로2차)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=R3J0dW1uWHpoM2hoQzBRVTRZUTBWQT09", "score": 9.0, "priority": "A", "reason": "사원수 5명으로 5~9명 구간(1점), 매출액 52.6억원으로 50억~300억 구간(2점), 공식 홈페이지 존재(1점), 주소가 한화비즈메트로2차 303호로 일반 오피스(2점), 업종이 화물운송 중개·대리로 국제물류·포워딩 관련(2점), 중소기업·주식회사(1점)로 총 9점.", "lat": 37.5588704565214, "lng": 126.861958550884}, {"name": "지오피(주)", "ceo": "김주석", "type": "중소기업", "industry": "용달 화물자동차 운송업", "employees": "11 명 (2016년 기준)", "founded": "2004년 3월 1일 (업력 23년차)", "revenue": "31억 6,876만원 (2016년 기준)", "homepage": "www.gopkorea.com", "address": "인천 영종구 공항동로296번길 98-114, D동 204호", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=dVJRcjlpZS9WUmNpbzVTRDVpa2FuZz09", "score": 9.0, "priority": "A", "reason": "사원수 11명으로 10~50명 구간에 해당하여 2점, 매출액 약 31.7억 원으로 10~50억 구간에 해당하여 1.5점, 공식 홈페이지 존재하여 1점, 주소가 일반 사무실(오피스)로 판단되어 2점, 업종이 용달 화물자동차 운송업으로 물류 관련성이 높아 1.5점, 중소기업으로 1점을 부여하여 총 9점으로 A등급입니다.", "lat": 37.476226682623, "lng": 126.4827394937}, {"name": "(주)더베이글", "ceo": "김형대", "type": "중소기업, 주식회사", "industry": "기타 가공식품 도매업", "employees": "73 명 (2026년 기준)", "founded": "2013년 8월 27일 (업력 14년차)", "revenue": "499억 6,802만원 (2025년 기준)", "homepage": "http://nutridday.com", "address": "경기 의정부시 태평로 21, 5층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=cVFFT0FvQzRXd3hMUkR4TnRTVjU3dz09", "score": 8.0, "priority": "A", "reason": "사원수 73명은 51~100명 구간으로 1점, 매출액 약 499.7억 원은 50억~300억 구간으로 2점, 공식 홈페이지 존재로 1점, 주소가 일반 건물 5층으로 사무실로 판단되어 2점, 업종은 기타 가공식품 도매업으로 물류·데이터 업무와 간접 관련되어 1점, 중소기업으로 1점을 부여하여 총 8점으로 A등급.", "lat": 37.734997430157, "lng": 127.04937333132}, {"name": "(주)키스템프그룹", "ceo": "이정호", "type": "중소기업", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": "1,223 명 (2026년 기준)", "founded": "2006년 1월 13일 (업력 21년차)", "revenue": "518억 8,061만원 (2025년 기준)", "homepage": "www.kistemp.co.kr", "address": "서울 중구 을지로5길 16, 4층 (을지로2가,삼화타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=Wm5sVDd5dlZoQktsUHd1Y0IxYk85UT09", "score": 4.5, "priority": "C", "reason": "사원수 1,223명으로 201명 이상이므로 0점, 매출액 518억 원으로 300억~1,000억 구간에 해당하여 1점, 홈페이지 존재로 1점, 주소가 일반 오피스(삼화타워)로 2점, 업종이 인력공급·인사관리로 물류·데이터 자동화와 관련성이 낮아 0점, 기업형태가 중소기업으로 1점. 총점 4.5점으로 C등급.", "lat": 37.5669500459178, "lng": 126.984906351855}, {"name": "퍼솔켈리코리아(유)", "ceo": "전유미", "type": "중소기업, 외국인 투자기업, 유한회사", "industry": "고용 알선업", "employees": "350 명 (2014년 기준)", "founded": "2005년 8월 4일 (업력 22년차)", "revenue": "131억 5,194만원 (2014년 기준)", "homepage": "https://www.persolkorea.com/", "address": "서울 중구 세종대로 136, 15층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=eGk1Y2lpcWZ1d0JYTndINTh1Vk8rdz09", "score": 7.0, "priority": "B", "reason": "사원수 350명으로 201명 이상이므로 0점, 매출액 131억 원으로 50억~300억 구간에 해당하여 2점이지만, 매출액 기준은 50억~300억이 2점이므로 2점이 맞으나, 실제로는 131억이므로 2점. 홈페이지 존재 1점, 주소는 서울 중구 세종대로 136, 15층으로 일반 사무실 2점, 업종은 고용 알선업이지만 관련 키워드에 항공무역, 해상무역, 수출입, 포워딩이 있어 국제물류 관련성이 높아 2점, 기업형태는 중소기업 1점. 총점 0+2+1+2+2+1=8점이지만, 매출액 점수를 1점으로 잘못 계산했음. 실제 매출액 131억은 50억~300억 구간이므로 2점이 맞음. 따라서 총점은 0+2+1+2+2+1=8점. 그러나 우선순위는 8점이면 A인데, 8~10점이 A이므로 A가 맞음. 하지만 출력 예시에서는 B로 나와있어서 혼동. 정확히 계산하면 8점이므로 A. 그러나 지시에 따라 점수 계산을 다시 하면: employee 0, revenue 2, homepage 1, address 2, industry 2, company_type 1 => total 8. priority A. 그러나 위 출력은 7점으로 B로 잘못됨. 수정하여 출력.", "lat": 37.5684232177354, "lng": 126.97825653257}, {"name": "(주)스타에이치알", "ceo": "양숙희", "type": "기타, 주식회사", "industry": "시설관리·경비·용역", "employees": "79 명 (2026년 기준)", "founded": null, "revenue": null, "homepage": "www.starhr.co.kr", "address": "서울 종로구 난계로 259 경일오피스텔", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=NkVuYU5RQjdLdXJIYVQ1dzN2Mkg0QT09", "score": 7.0, "priority": "B", "reason": "사원수 79명은 51~100명 구간으로 1점, 매출액 정보 없음으로 0점, 홈페이지 존재로 1점, 주소가 오피스텔로 사무실 성격 2점, 업종이 시설관리·경비·용역이지만 관련 키워드에 관세사, 국제무역사, 무역경리 등이 있어 국제물류·통관 관련성이 높아 2점, 기업형태가 주식회사로 중소기업으로 판단되어 1점. 총점 7점으로 B등급.", "lat": 37.5748410468937, "lng": 127.022956262585}, {"name": "더케이텍(주)", "ceo": "박영진", "type": "중견기업, 주식회사, 외부감사법인", "industry": "상용 인력 공급 및 인사관리 서비스업", "employees": null, "founded": "1986년 6월 23일 (업력 41년차)", "revenue": "3,487억 931만원 (2021년 기준)", "homepage": "www.k-tec.co.kr", "address": "서울 서초구 반포대로12길 41 (서초동,알타워)", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=ajFKc3JZT1F1SjBWZHptdGlLUi9tdz09", "score": 4.0, "priority": "C", "reason": "사원수 정보 없음(0점), 매출액 3,487억 원으로 1,000억 초과(0.5점), 홈페이지 존재(1점), 주소는 일반 오피스 건물(2점), 업종은 인력공급으로 물류·자동화 관련성 낮음(0점), 중견기업(0.5점). 총점 4점으로 C등급.", "lat": 37.4852511377939, "lng": 127.013608112159}, {"name": "주식회사 엘리튜드", "ceo": "주은경", "type": "중소기업, 주식회사", "industry": "고용 알선업", "employees": "15 명 (2020년 기준)", "founded": "2017년 1월 1일 (업력 10년차)", "revenue": "6억원 (2020년 기준)", "homepage": null, "address": "서울 종로구 종로1길 50, 비동 위워크 2층", "detail_url": "https://www.saramin.co.kr/zf_user/company-info/view?csn=WDNNSnhQWFk4T1VGY0JYT3diU0xadz09", "score": 5.0, "priority": "B", "reason": "사원수 15명으로 10~50명 구간에 해당하여 2점, 매출액 6억원으로 10억 미만이므로 0점, 홈페이지 정보 없음으로 0점, 주소는 종로구 오피스 건물로 사무실로 판단되어 2점, 업종이 고용 알선업으로 물류와 직접 관련 없어 0점, 기업형태는 중소기업으로 1점. 총점 5점으로 B등급.", "lat": 37.5747244659804, "lng": 126.979022440109}];
+
+DATA = RAW_DATA.map((d,i) => ({...d, __id:i}));
+updateStats();
+renderList();
+if(DATA.length){
+  const bounds = L.latLngBounds(DATA.map(d=>[d.lat, d.lng]));
+  map.fitBounds(bounds, {padding:[40,40]});
+}
+</script>
+</body>
+</html>
