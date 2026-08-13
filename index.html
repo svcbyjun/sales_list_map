@@ -459,12 +459,14 @@
     <div class="route-panel">
       <div class="route-head">
         <span class="route-title">오늘의 방문 루트</span>
-        <span class="route-count" id="route-count">0 / 6 선택</span>
+        <span class="route-count" id="route-count">기본 0 / 6 · 추가 0</span>
       </div>
       <div class="route-start" id="route-start-label">출발: 화곡로 350</div>
+      <div class="route-note">기본 6곳을 자동선택한 뒤, 원하는 기업을 추가로 선택하면 6곳을 초과해 함께 경로를 계산할 수 있습니다.</div>
       <div class="route-actions">
         <button class="rbtn" id="btn-geolocate">📍 내 위치 사용</button>
-        <button class="rbtn" id="btn-auto6">가까운 6곳 자동선택</button>
+        <button class="rbtn" id="btn-auto6">오늘 기본 6곳 자동선택</button>
+        <button class="rbtn" id="btn-add-stop">추가 방문지 선택</button>
         <button class="rbtn ghost" id="btn-clear-route">선택 초기화</button>
       </div>
       <button class="rbtn primary" id="btn-calc-route" disabled>경로 계산하기</button>
@@ -623,7 +625,8 @@ function renderList(){
 
   list.innerHTML = filtered.map(d => `
     <div class="card ${d.__id===selectedId?'selected':''} ${routeSelection.has(d.__id)?'in-route':''}" data-id="${d.__id}">
-      <input type="checkbox" class="card-check" data-id="${d.__id}" ${routeSelection.has(d.__id)?'checked':''} title="오늘 방문 루트에 추가" />
+      <input type="checkbox" class="card-check" data-id="${d.__id}" ${routeSelection.has(d.__id)?'checked':''}
+        title="${baseRouteSelection.has(d.__id) ? '오늘 기본 방문 6곳' : (extraRouteSelection.has(d.__id) ? '추가 방문지' : '오늘 방문 루트에 추가')}" />
       <div class="score-ring">${scoreRingSvg(d.score)}</div>
       <div class="card-body">
         <div class="card-top">
@@ -690,27 +693,36 @@ document.getElementById('search').addEventListener('input', renderList);
 // ==================================================================
 // 방문 루트 기능
 // ==================================================================
-const MAX_ROUTE_STOPS = 10;
+const MAX_ROUTE_STOPS = 6;
+let baseRouteSelection = new Set();   // 오늘 기본 방문 6곳
+let extraRouteSelection = new Set();  // 사용자가 추가한 방문지
 
 function toggleRouteSelection(id, checked){
   if(checked){
-    if(routeSelection.size >= MAX_ROUTE_STOPS){
-      alert(`하루 최대 ${MAX_ROUTE_STOPS}곳까지만 선택할 수 있어요.`);
-      const cb = document.querySelector(`.card-check[data-id="${id}"]`);
-      if(cb) cb.checked = false;
-      return;
+    // 기본 6곳이 이미 채워진 상태라면 체크박스는 '추가 방문지'로 취급
+    if(baseRouteSelection.has(id)){
+      routeSelection.add(id);
+      extraRouteSelection.delete(id);
+    } else {
+      extraRouteSelection.add(id);
+      routeSelection.add(id);
     }
-    routeSelection.add(id);
   } else {
+    baseRouteSelection.delete(id);
+    extraRouteSelection.delete(id);
     routeSelection.delete(id);
   }
-  document.querySelector(`.card[data-id="${id}"]`)?.classList.toggle('in-route', checked);
+
+  document.querySelector(`.card[data-id="${id}"]`)?.classList.toggle(
+    'in-route', routeSelection.has(id)
+  );
   updateRouteCount();
   clearRouteResult();
 }
 
 function updateRouteCount(){
-  document.getElementById('route-count').textContent = `${routeSelection.size} / ${MAX_ROUTE_STOPS} 선택`;
+  document.getElementById('route-count').textContent =
+    `기본 ${baseRouteSelection.size} / ${MAX_ROUTE_STOPS} · 추가 ${extraRouteSelection.size}`;
   document.getElementById('btn-calc-route').disabled = routeSelection.size === 0;
 }
 
@@ -724,8 +736,15 @@ function clearRouteResult(){
 
 document.getElementById('btn-auto6').addEventListener('click', () => {
   routeSelection.clear();
+  baseRouteSelection.clear();
+  extraRouteSelection.clear();
+
   const cluster = nearestNeighborOrder(startPoint, DATA).slice(0, MAX_ROUTE_STOPS);
-  cluster.forEach(d => routeSelection.add(d.__id));
+  cluster.forEach(d => {
+    baseRouteSelection.add(d.__id);
+    routeSelection.add(d.__id);
+  });
+
   renderList();
   updateRouteCount();
   clearRouteResult();
@@ -733,9 +752,18 @@ document.getElementById('btn-auto6').addEventListener('click', () => {
 
 document.getElementById('btn-clear-route').addEventListener('click', () => {
   routeSelection.clear();
+  baseRouteSelection.clear();
+  extraRouteSelection.clear();
   renderList();
   updateRouteCount();
   clearRouteResult();
+});
+
+document.getElementById('btn-add-stop').addEventListener('click', () => {
+  alert(
+    '추가 방문지를 선택하세요.\n\n' +
+    '목록의 체크박스를 선택하면 기본 6곳과 별도로 추가 방문지로 경로에 포함됩니다.'
+  );
 });
 
 document.getElementById('btn-geolocate').addEventListener('click', () => {
