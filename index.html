@@ -262,6 +262,32 @@
   }
   .card.in-route{background:var(--brand-soft); border-color:var(--brand);}
 
+  /* ---------- 방문 완료 ---------- */
+  .card.visited{opacity:0.5;}
+  .card.visited .card-name{text-decoration:line-through; text-decoration-color:var(--muted);}
+  .visit-btn{
+    flex-shrink:0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    font-weight:600;
+    padding:3px 7px;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--muted);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:all .12s ease;
+  }
+  .visit-btn:hover{border-color:var(--brand);}
+  .visit-btn.done{
+    background:var(--brand);
+    border-color:var(--brand);
+    color:#f4f2ec;
+  }
+  .chip.toggle{margin-left:auto;}
+  .chip.toggle.active{background:var(--ink); border-color:var(--ink);}
+
   .num-marker{
     width:26px; height:26px;
     border-radius:50%;
@@ -444,6 +470,7 @@
     <span>전체 <b id="stat-total">-</b></span>
     <span>A등급 <b id="stat-high">-</b></span>
     <span>평균점수 <b id="stat-avg">-</b></span>
+    <span>방문완료 <b id="stat-visited">-</b></span>
   </div>
 </header>
 
@@ -454,6 +481,7 @@
       <div class="chip" data-p="A"><span class="dot"></span>A등급</div>
       <div class="chip" data-p="B"><span class="dot"></span>B등급</div>
       <div class="chip" data-p="C"><span class="dot"></span>C등급</div>
+      <div class="chip toggle" id="chip-hide-visited">방문완료 숨기기</div>
     </div>
 
     <div class="route-panel">
@@ -505,6 +533,43 @@ let DATA = [];
 let markers = {};
 let selectedId = null;
 let activeFilter = 'all';
+
+// ---- 방문완료 상태 (localStorage에 영구 저장, 껐다 켜도 유지) ----
+const VISITED_KEY = 'fieldmap_visited_v1';
+const HIDE_VISITED_KEY = 'fieldmap_hideVisited_v1';
+
+function visitKey(d){
+  // id는 데이터가 갱신되면 바뀔 수 있어 회사명+주소로 안정적인 키를 만듭니다.
+  return `${d.name||''}__${d.address||''}`;
+}
+
+let visitedSet = new Set();
+try{
+  visitedSet = new Set(JSON.parse(localStorage.getItem(VISITED_KEY) || '[]'));
+}catch(e){
+  console.warn('방문완료 데이터를 불러오지 못했습니다:', e);
+}
+
+function saveVisited(){
+  try{
+    localStorage.setItem(VISITED_KEY, JSON.stringify([...visitedSet]));
+  }catch(e){
+    console.warn('방문완료 데이터를 저장하지 못했습니다:', e);
+  }
+}
+
+let hideVisited = localStorage.getItem(HIDE_VISITED_KEY) === '1';
+
+function toggleVisited(id){
+  const item = DATA.find(d => d.__id === id);
+  if(!item) return;
+  const key = visitKey(item);
+  if(visitedSet.has(key)) visitedSet.delete(key);
+  else visitedSet.add(key);
+  saveVisited();
+  renderList();
+  updateStats();
+}
 
 // ---- 방문 루트 상태 ----
 const HOME = { lat: 37.5549477, lng: 126.8523571, name: '출발지 (화곡로 350)' };
@@ -607,6 +672,7 @@ function renderList(){
 
   let filtered = DATA.filter(d => {
     if(activeFilter !== 'all' && priorityKey(d.priority) !== activeFilter) return false;
+    if(hideVisited && visitedSet.has(visitKey(d))) return false;
     if(!q) return true;
     const hay = `${d.name||''} ${d.address||''} ${d.industry||''} ${d.ceo||''}`.toLowerCase();
     return hay.includes(q);
@@ -623,8 +689,10 @@ function renderList(){
     return;
   }
 
-  list.innerHTML = filtered.map(d => `
-    <div class="card ${d.__id===selectedId?'selected':''} ${routeSelection.has(d.__id)?'in-route':''}" data-id="${d.__id}">
+  list.innerHTML = filtered.map(d => {
+    const isVisited = visitedSet.has(visitKey(d));
+    return `
+    <div class="card ${d.__id===selectedId?'selected':''} ${routeSelection.has(d.__id)?'in-route':''} ${isVisited?'visited':''}" data-id="${d.__id}">
       <input type="checkbox" class="card-check" data-id="${d.__id}" ${routeSelection.has(d.__id)?'checked':''}
         title="${baseRouteSelection.has(d.__id) ? '오늘 기본 방문 6곳' : (extraRouteSelection.has(d.__id) ? '추가 방문지' : '오늘 방문 루트에 추가')}" />
       <div class="score-ring">${scoreRingSvg(d.score)}</div>
@@ -632,12 +700,14 @@ function renderList(){
         <div class="card-top">
           <span class="card-name">${d.name||'-'}</span>
           <span class="badge ${priorityKey(d.priority)}">${d.priority||'-'}</span>
+          <button class="visit-btn ${isVisited?'done':''}" data-id="${d.__id}" title="방문 완료 표시/해제">${isVisited?'✓ 방문완료':'방문표시'}</button>
         </div>
         <div class="card-meta">${d.address||'-'}</div>
         <div class="card-tags">${safeTags(d.industry).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   filtered.forEach(d => {
     const m = makeMarker(d, d.__id);
@@ -654,6 +724,12 @@ function renderList(){
   list.querySelectorAll('.card-check').forEach(cb => {
     cb.addEventListener('click', (e) => e.stopPropagation());
     cb.addEventListener('change', (e) => toggleRouteSelection(parseInt(e.target.dataset.id), e.target.checked));
+  });
+  list.querySelectorAll('.visit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleVisited(parseInt(e.target.dataset.id));
+    });
   });
 }
 
@@ -678,6 +754,7 @@ function updateStats(){
   const scores = DATA.map(d=>d.score).filter(s=>s!==null && s!==undefined);
   const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '-';
   document.getElementById('stat-avg').textContent = avg;
+  document.getElementById('stat-visited').textContent = DATA.filter(d=>visitedSet.has(visitKey(d))).length;
 }
 
 document.querySelectorAll('.chip').forEach(chip => {
@@ -689,6 +766,15 @@ document.querySelectorAll('.chip').forEach(chip => {
   });
 });
 document.getElementById('search').addEventListener('input', renderList);
+
+const chipHideVisited = document.getElementById('chip-hide-visited');
+chipHideVisited.classList.toggle('active', hideVisited);
+chipHideVisited.addEventListener('click', () => {
+  hideVisited = !hideVisited;
+  localStorage.setItem(HIDE_VISITED_KEY, hideVisited ? '1' : '0');
+  chipHideVisited.classList.toggle('active', hideVisited);
+  renderList();
+});
 
 // ==================================================================
 // 방문 루트 기능
