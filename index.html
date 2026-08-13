@@ -739,7 +739,11 @@ document.getElementById('btn-auto6').addEventListener('click', () => {
   baseRouteSelection.clear();
   extraRouteSelection.clear();
 
-  const cluster = nearestNeighborOrder(startPoint, DATA).slice(0, MAX_ROUTE_STOPS);
+  // 현재 선택한 등급 필터를 자동선택 대상에도 적용
+  const candidatePool = activeFilter === 'all'
+    ? DATA
+    : DATA.filter(d => priorityKey(d.priority) === activeFilter);
+  const cluster = nearestNeighborOrder(startPoint, candidatePool).slice(0, MAX_ROUTE_STOPS);
   cluster.forEach(d => {
     baseRouteSelection.add(d.__id);
     routeSelection.add(d.__id);
