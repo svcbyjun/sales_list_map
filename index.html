@@ -563,7 +563,7 @@
           <input type="checkbox" id="toggle-hide-visited">
           <span class="slider"></span>
         </span>
-        <span>방문완료 곳 목록에서 숨기기</span>
+        <span>방문완료 업체 숨기기</span>
       </label>
       <span class="visited-count-badge" id="visited-count-badge">방문완료 0곳</span>
     </div>
@@ -577,7 +577,7 @@
       <div class="route-note">기본 6곳을 자동선택한 뒤, 원하는 기업을 추가로 선택하면 6곳을 초과해 함께 경로를 계산할 수 있습니다.</div>
       <div class="route-actions">
         <button class="rbtn" id="btn-geolocate">📍 내 위치 사용</button>
-        <button class="rbtn" id="btn-auto6">오늘 기본 6곳 자동선택</button>
+        <button class="rbtn" id="btn-auto6">6곳 자동 선택</button>
         <button class="rbtn" id="btn-add-stop">추가 방문지 선택</button>
         <button class="rbtn ghost" id="btn-clear-route">선택 초기화</button>
       </div>
@@ -913,10 +913,11 @@ document.getElementById('btn-auto6').addEventListener('click', () => {
   baseRouteSelection.clear();
   extraRouteSelection.clear();
 
-  // 현재 선택한 등급 필터를 자동선택 대상에도 적용
-  const candidatePool = activeFilter === 'all'
+  // 현재 선택한 등급 필터를 자동선택 대상에도 적용 + 방문완료 업체는 제외
+  const candidatePool = (activeFilter === 'all'
     ? DATA
-    : DATA.filter(d => priorityKey(d.priority) === activeFilter);
+    : DATA.filter(d => priorityKey(d.priority) === activeFilter)
+  ).filter(d => !visitedSet.has(visitKey(d)));
   const cluster = nearestNeighborOrder(startPoint, candidatePool).slice(0, MAX_ROUTE_STOPS);
   cluster.forEach(d => {
     baseRouteSelection.add(d.__id);
