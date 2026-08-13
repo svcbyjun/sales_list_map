@@ -288,6 +288,73 @@
   .chip.toggle{margin-left:auto;}
   .chip.toggle.active{background:var(--ink); border-color:var(--ink);}
 
+  /* ---------- 방문완료 숨기기 스위치 ---------- */
+  .visited-toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 14px;
+    background:#fbfaf6;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .switch-label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+    user-select:none;
+  }
+  .switch{
+    position:relative;
+    display:inline-block;
+    width:34px;
+    height:20px;
+    flex-shrink:0;
+  }
+  .switch input{
+    opacity:0;
+    width:0;
+    height:0;
+  }
+  .switch .slider{
+    position:absolute;
+    inset:0;
+    background:#d8d3c4;
+    border-radius:20px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .switch .slider::before{
+    content:"";
+    position:absolute;
+    height:14px;
+    width:14px;
+    left:3px;
+    top:3px;
+    background:#fff;
+    border-radius:50%;
+    box-shadow:0 1px 3px rgba(19,26,36,0.3);
+    transition:transform .15s ease;
+  }
+  .switch input:checked + .slider{background:var(--brand);}
+  .switch input:checked + .slider::before{transform:translateX(14px);}
+  .visited-count-badge{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    font-weight:600;
+    color:var(--brand);
+    background:var(--brand-soft);
+    padding:3px 9px;
+    border-radius:10px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+
   .num-marker{
     width:26px; height:26px;
     border-radius:50%;
@@ -385,6 +452,13 @@
   .card-tags{
     display:flex; gap:4px; flex-wrap:wrap;
   }
+  .card-bottom-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .card-bottom-row .card-tags{flex:1; min-width:0;}
   .tag{
     font-size:10px;
     color:var(--brand);
@@ -481,7 +555,17 @@
       <div class="chip" data-p="A"><span class="dot"></span>A등급</div>
       <div class="chip" data-p="B"><span class="dot"></span>B등급</div>
       <div class="chip" data-p="C"><span class="dot"></span>C등급</div>
-      <div class="chip toggle" id="chip-hide-visited">방문완료 숨기기</div>
+    </div>
+
+    <div class="visited-toggle-row">
+      <label class="switch-label" for="toggle-hide-visited">
+        <span class="switch">
+          <input type="checkbox" id="toggle-hide-visited">
+          <span class="slider"></span>
+        </span>
+        <span>방문완료 곳 목록에서 숨기기</span>
+      </label>
+      <span class="visited-count-badge" id="visited-count-badge">방문완료 0곳</span>
     </div>
 
     <div class="route-panel">
@@ -700,10 +784,12 @@ function renderList(){
         <div class="card-top">
           <span class="card-name">${d.name||'-'}</span>
           <span class="badge ${priorityKey(d.priority)}">${d.priority||'-'}</span>
-          <button class="visit-btn ${isVisited?'done':''}" data-id="${d.__id}" title="방문 완료 표시/해제">${isVisited?'✓ 방문완료':'방문표시'}</button>
         </div>
         <div class="card-meta">${d.address||'-'}</div>
-        <div class="card-tags">${safeTags(d.industry).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+        <div class="card-bottom-row">
+          <div class="card-tags">${safeTags(d.industry).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+          <button class="visit-btn ${isVisited?'done':''}" data-id="${d.__id}" title="방문 완료 표시/해제">${isVisited?'✓ 방문완료':'○ 방문표시'}</button>
+        </div>
       </div>
     </div>
   `;
@@ -754,7 +840,10 @@ function updateStats(){
   const scores = DATA.map(d=>d.score).filter(s=>s!==null && s!==undefined);
   const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '-';
   document.getElementById('stat-avg').textContent = avg;
-  document.getElementById('stat-visited').textContent = DATA.filter(d=>visitedSet.has(visitKey(d))).length;
+  const visitedCount = DATA.filter(d=>visitedSet.has(visitKey(d))).length;
+  document.getElementById('stat-visited').textContent = visitedCount;
+  const badge = document.getElementById('visited-count-badge');
+  if(badge) badge.textContent = `방문완료 ${visitedCount}곳`;
 }
 
 document.querySelectorAll('.chip').forEach(chip => {
@@ -767,12 +856,11 @@ document.querySelectorAll('.chip').forEach(chip => {
 });
 document.getElementById('search').addEventListener('input', renderList);
 
-const chipHideVisited = document.getElementById('chip-hide-visited');
-chipHideVisited.classList.toggle('active', hideVisited);
-chipHideVisited.addEventListener('click', () => {
-  hideVisited = !hideVisited;
+const toggleHideVisited = document.getElementById('toggle-hide-visited');
+toggleHideVisited.checked = hideVisited;
+toggleHideVisited.addEventListener('change', (e) => {
+  hideVisited = e.target.checked;
   localStorage.setItem(HIDE_VISITED_KEY, hideVisited ? '1' : '0');
-  chipHideVisited.classList.toggle('active', hideVisited);
   renderList();
 });
 
